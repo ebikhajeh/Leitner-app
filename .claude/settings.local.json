@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "Bash(bun install *)",
+      "Bash(bun run *)",
+      "Bash(echo \"server pid: $!\")",
+      "Bash(echo \"client pid: $!\")",
+      "Read(//tmp/**)"
+    ]
+  }
+}
