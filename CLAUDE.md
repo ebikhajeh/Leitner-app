@@ -26,7 +26,7 @@ Key libraries to look up via context7:
 | Express | `/expressjs/express` |
 | Vite | `/websites/vite_dev` |
 | React | resolve via `mcp__context7__resolve-library-id` |
-| Prisma | resolve via `mcp__context7__resolve-library-id` |
+| Prisma | `/websites/prisma_io` |
 | TanStack Query | resolve via `mcp__context7__resolve-library-id` |
 
 ## Dev Commands

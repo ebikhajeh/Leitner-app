@@ -7,7 +7,9 @@
       "Bash(bun run *)",
       "Bash(echo \"server pid: $!\")",
       "Bash(echo \"client pid: $!\")",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(bun add *)",
+      "Bash(bunx prisma *)"
     ]
   }
 }
