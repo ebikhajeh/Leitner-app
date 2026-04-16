@@ -1,29 +1,36 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { signIn } from "../lib/auth-client";
+
+const schema = z.object({
+  email: z.string().email("Enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type FormValues = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({ resolver: zodResolver(schema), shouldFocusError: true });
 
+  const onSubmit = async (data: FormValues) => {
+    setServerError(null);
     try {
-      await signIn.email(
-        { email, password },
-        {
-          onSuccess: () => navigate("/"),
-          onError: (ctx) => setError(ctx.error.message),
-        }
-      );
+      await signIn.email(data, {
+        onSuccess: () => navigate("/"),
+        onError: (ctx) => setServerError(ctx.error.message),
+      });
     } finally {
-      setLoading(false);
+      // loading state is managed by isSubmitting
     }
   };
 
@@ -31,32 +38,30 @@ export default function LoginPage() {
     <div style={styles.page}>
       <div style={styles.card}>
         <h1 style={styles.title}>Sign in</h1>
-        <form onSubmit={handleSubmit} style={styles.form}>
+        <form onSubmit={handleSubmit(onSubmit)} style={styles.form} noValidate>
           <label style={styles.label}>
             Email
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={styles.input}
+              {...register("email", { onChange: () => setServerError(null) })}
+              style={{ ...styles.input, ...(errors.email && styles.inputError) }}
               placeholder="you@example.com"
             />
+            {errors.email && <span style={styles.fieldError}>{errors.email.message}</span>}
           </label>
           <label style={styles.label}>
             Password
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={styles.input}
+              {...register("password", { onChange: () => setServerError(null) })}
+              style={{ ...styles.input, ...(errors.password && styles.inputError) }}
               placeholder="••••••••"
             />
+            {errors.password && <span style={styles.fieldError}>{errors.password.message}</span>}
           </label>
-          {error && <p style={styles.error}>{error}</p>}
-          <button type="submit" disabled={loading} style={styles.btn}>
-            {loading ? "Signing in…" : "Sign in"}
+          {serverError && <p style={styles.error}>{serverError}</p>}
+          <button type="submit" disabled={isSubmitting} style={styles.btn}>
+            {isSubmitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
       </div>
@@ -104,6 +109,13 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #d1d5db",
     borderRadius: "6px",
     outline: "none",
+  },
+  inputError: {
+    border: "1px solid #dc2626",
+  },
+  fieldError: {
+    color: "#dc2626",
+    fontSize: "0.8rem",
   },
   error: {
     color: "#dc2626",
