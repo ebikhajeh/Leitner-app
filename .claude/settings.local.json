@@ -9,7 +9,17 @@
       "Bash(echo \"client pid: $!\")",
       "Read(//tmp/**)",
       "Bash(bun add *)",
-      "Bash(bunx prisma *)"
+      "Bash(bunx prisma *)",
+      "Bash(node *)",
+      "Bash(bunx tsc *)",
+      "Bash(bun src/index.ts)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(curl -s -c /tmp/cookies.txt -X POST http://localhost:3000/api/auth/sign-up/email -H 'Content-Type: application/json' -d '{\"email\":\"test@example.com\",\"password\":\"password123\",\"name\":\"Test User\"}')",
+      "Bash(curl *)",
+      "Bash(pkill -f \"bun src/index.ts\")",
+      "Bash(netstat -ano)",
+      "Bash(wait)",
+      "Bash(taskkill //F //PID 25340)"
     ]
   }
 }
