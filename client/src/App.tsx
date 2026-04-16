@@ -5,8 +5,8 @@ import HomePage from "./pages/HomePage";
 
 function LoadingScreen() {
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <span style={{ fontSize: "0.9rem", color: "#6b7280" }}>Loading…</span>
+    <div className="min-h-screen flex items-center justify-center">
+      <span className="text-sm text-gray-500">Loading…</span>
     </div>
   );
 }

@@ -7,15 +7,11 @@ export default function HomePage() {
   return (
     <>
       <Navbar />
-      <main style={styles.main}>
-        <h2>Welcome back, {session?.user?.name || session?.user?.email}!</h2>
+      <main className="p-8">
+        <h2 className="text-xl font-semibold">
+          Welcome back, {session?.user?.name || session?.user?.email}!
+        </h2>
       </main>
     </>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  main: {
-    padding: "2rem 1.5rem",
-  },
-};

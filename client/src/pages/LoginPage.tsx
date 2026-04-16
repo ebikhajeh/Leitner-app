@@ -29,38 +29,48 @@ export default function LoginPage() {
         onSuccess: () => navigate("/"),
         onError: (ctx) => setServerError(ctx.error.message),
       });
-    } finally {
-      // loading state is managed by isSubmitting
-    }
+    } finally {}
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>Sign in</h1>
-        <form onSubmit={handleSubmit(onSubmit)} style={styles.form} noValidate>
-          <label style={styles.label}>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="bg-white border border-gray-200 rounded-xl p-8 w-full max-w-sm">
+        <h1 className="text-2xl font-bold mb-6">Sign in</h1>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
             Email
             <input
               type="email"
               {...register("email", { onChange: () => setServerError(null) })}
-              style={{ ...styles.input, ...(errors.email && styles.inputError) }}
               placeholder="you@example.com"
+              className={`px-3 py-2 text-sm border rounded-md outline-none ${
+                errors.email ? "border-red-500" : "border-gray-300"
+              }`}
             />
-            {errors.email && <span style={styles.fieldError}>{errors.email.message}</span>}
+            {errors.email && (
+              <span className="text-red-600 text-xs">{errors.email.message}</span>
+            )}
           </label>
-          <label style={styles.label}>
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
             Password
             <input
               type="password"
               {...register("password", { onChange: () => setServerError(null) })}
-              style={{ ...styles.input, ...(errors.password && styles.inputError) }}
               placeholder="••••••••"
+              className={`px-3 py-2 text-sm border rounded-md outline-none ${
+                errors.password ? "border-red-500" : "border-gray-300"
+              }`}
             />
-            {errors.password && <span style={styles.fieldError}>{errors.password.message}</span>}
+            {errors.password && (
+              <span className="text-red-600 text-xs">{errors.password.message}</span>
+            )}
           </label>
-          {serverError && <p style={styles.error}>{serverError}</p>}
-          <button type="submit" disabled={isSubmitting} style={styles.btn}>
+          {serverError && <p className="text-red-600 text-sm">{serverError}</p>}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="mt-1 py-2 text-sm font-semibold bg-gray-900 text-white rounded-md cursor-pointer disabled:opacity-60"
+          >
             {isSubmitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
@@ -68,69 +78,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#f9fafb",
-  },
-  card: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: "10px",
-    padding: "2rem",
-    width: "100%",
-    maxWidth: "380px",
-  },
-  title: {
-    marginBottom: "1.5rem",
-    fontSize: "1.4rem",
-    fontWeight: 700,
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1rem",
-  },
-  label: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.35rem",
-    fontSize: "0.875rem",
-    fontWeight: 500,
-    color: "#374151",
-  },
-  input: {
-    padding: "0.5rem 0.75rem",
-    fontSize: "0.95rem",
-    border: "1px solid #d1d5db",
-    borderRadius: "6px",
-    outline: "none",
-  },
-  inputError: {
-    border: "1px solid #dc2626",
-  },
-  fieldError: {
-    color: "#dc2626",
-    fontSize: "0.8rem",
-  },
-  error: {
-    color: "#dc2626",
-    fontSize: "0.85rem",
-    margin: 0,
-  },
-  btn: {
-    padding: "0.6rem",
-    fontSize: "0.95rem",
-    fontWeight: 600,
-    background: "#111827",
-    color: "#fff",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-    marginTop: "0.25rem",
-  },
-};

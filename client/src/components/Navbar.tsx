@@ -14,12 +14,17 @@ export default function Navbar() {
   };
 
   return (
-    <nav style={styles.nav}>
-      <span style={styles.brand}>Leitner App</span>
+    <nav className="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white">
+      <span className="font-bold text-lg">Leitner App</span>
       {session?.user && (
-        <div style={styles.right}>
-          <span style={styles.username}>{session.user.name || session.user.email}</span>
-          <button onClick={handleSignOut} style={styles.signOutBtn}>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-600">
+            {session.user.name || session.user.email}
+          </span>
+          <button
+            onClick={handleSignOut}
+            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white cursor-pointer hover:bg-gray-50"
+          >
             Sign out
           </button>
         </div>
@@ -27,35 +32,3 @@ export default function Navbar() {
     </nav>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  nav: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0.75rem 1.5rem",
-    borderBottom: "1px solid #e5e7eb",
-    background: "#fff",
-  },
-  brand: {
-    fontWeight: 700,
-    fontSize: "1.1rem",
-  },
-  right: {
-    display: "flex",
-    alignItems: "center",
-    gap: "1rem",
-  },
-  username: {
-    fontSize: "0.9rem",
-    color: "#374151",
-  },
-  signOutBtn: {
-    padding: "0.35rem 0.85rem",
-    fontSize: "0.85rem",
-    border: "1px solid #d1d5db",
-    borderRadius: "6px",
-    background: "#fff",
-    cursor: "pointer",
-  },
-};
