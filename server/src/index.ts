@@ -7,10 +7,11 @@ import { requireAuth } from "./middleware/requireAuth";
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
+app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+
 // BetterAuth handler must be registered before express.json()
 app.all("/api/auth/{*any}", toNodeHandler(auth));
 
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
