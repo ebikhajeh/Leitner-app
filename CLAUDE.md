@@ -5,7 +5,8 @@
 - **Backend**: Express 5 + TypeScript (`server/`)
 - **Frontend**: React 19 + Vite + TypeScript (`client/`)
 - **Database**: PostgreSQL via Supabase + Prisma ORM
-- **Auth**: Custom session-based (httpOnly cookie)
+- **Auth**: Better Auth (session-based, httpOnly cookie)
+- **UI**: shadcn/ui (style: `base-nova`, neutral base color, CSS variables, Tailwind v4)
 - **AI**: Anthropic Claude API (server-side only)
 
 ## Project Structure
@@ -28,9 +29,52 @@ Key libraries to look up via context7:
 | React | resolve via `mcp__context7__resolve-library-id` |
 | Prisma | `/websites/prisma_io` |
 | TanStack Query | resolve via `mcp__context7__resolve-library-id` |
+| shadcn/ui | `/shadcn-ui/ui` |
 
 ## Dev Commands
 ```bash
 bun run dev:server   # start Express (server/)
 bun run dev:client   # start Vite (client/)
 ```
+
+## Authentication
+
+The app uses **Better Auth** with email/password and session cookies.
+
+### Server (`server/`)
+- **Config**: `src/lib/auth.ts` — initialises `betterAuth` with the Prisma adapter, `emailAndPassword` enabled, and `trustedOrigins` from `CLIENT_URL`
+- **Route**: `app.all("/api/auth/{*any}", toNodeHandler(auth))` in `src/index.ts` — must be registered **before** `express.json()`
+- **Guard middleware**: `src/middleware/requireAuth.ts` — calls `auth.api.getSession()`, returns 401 if no session, otherwise sets `res.locals.user` and `res.locals.session`
+- **Types**: `src/types/express.d.ts` augments `Express.Locals` so `res.locals.user` and `res.locals.session` are fully typed via `typeof auth.$Infer.Session`
+
+Protect any route by adding `requireAuth` as middleware:
+```ts
+app.get("/api/some-route", requireAuth, (req, res) => { ... });
+```
+
+### Client (`client/`)
+- **Auth client**: `src/lib/auth-client.ts` — created with `createAuthClient({ baseURL: import.meta.env.VITE_API_URL })`
+- **Exports**: `useSession`, `signIn`, `signOut` — import directly from `@/lib/auth-client`
+- **Sign in**: `signIn.email({ email, password }, { onSuccess, onError })`
+- **Session hook**: `useSession()` returns `{ data, isPending }` — `data.user` is the authenticated user
+
+### Required env vars
+| Var | Where | Purpose |
+|---|---|---|
+| `CLIENT_URL` | server | Allowed CORS origin + trusted origin for Better Auth |
+| `DB_PROVIDER` | server | Prisma adapter provider (e.g. `postgresql`) |
+| `VITE_API_URL` | client | Base URL for the Better Auth client |
+
+## Frontend Conventions
+
+### shadcn/ui
+- Components live in `client/src/components/ui/`
+- Add new components with: `npx shadcn@latest add <name>` (run from `client/`)
+- Use `@/` path alias for all imports (e.g. `@/components/ui/button`)
+- Theme tokens are CSS variables defined in `client/src/index.css` — always use semantic tokens (`bg-background`, `text-foreground`, `text-destructive`, etc.) rather than hardcoded colors
+
+### Forms
+- Use **React Hook Form** + **Zod** for all forms
+- Wire shadcn `Input` and `Label` with RHF `register()` and `htmlFor`/`id` pairing
+- Show field errors with `<p className="text-destructive text-xs">` below the input
+- Show server errors with `<p className="text-destructive text-sm">` above the submit button
