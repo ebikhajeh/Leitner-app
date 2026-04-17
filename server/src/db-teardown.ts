@@ -1,4 +1,7 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+dotenv.config({ path: path.resolve(__dirname, "../.env.test"), override: false });
+dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 import { Client } from "pg";
 
 const client = new Client({ connectionString: process.env.DATABASE_URL });

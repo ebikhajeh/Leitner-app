@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 import path from "path";
+import dotenv from "dotenv";
+
+const serverTestEnv =
+  dotenv.config({ path: path.resolve(__dirname, "server/.env.test") }).parsed ?? {};
 
 export default defineConfig({
   testDir: "./e2e",
@@ -26,7 +30,7 @@ export default defineConfig({
       cwd: path.resolve(__dirname, "server"),
       port: 3001,
       reuseExistingServer: !process.env.CI,
-      env: { NODE_ENV: "test" },
+      env: { ...serverTestEnv, NODE_ENV: "test" },
     },
     {
       command: "bunx vite --mode test --port 5174",
