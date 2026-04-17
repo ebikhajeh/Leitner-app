@@ -25,7 +25,8 @@
       "Bash(cmd *)",
       "Bash(powershell *)",
       "Bash(npx shadcn@latest init -d)",
-      "Bash(npx shadcn@latest add input label card)"
+      "Bash(npx shadcn@latest add input label card)",
+      "Bash(bunx playwright *)"
     ]
   }
 }
