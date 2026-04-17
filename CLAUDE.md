@@ -40,6 +40,17 @@ bun run test:e2e        # run Playwright E2E tests (headless)
 bun run test:e2e:ui     # run Playwright E2E tests (UI mode)
 ```
 
+## E2E Tests
+
+Use the **`playwright-e2e-writer`** agent to write all Playwright tests. Never write tests directly — always delegate to this agent.
+
+Trigger it when:
+- A new page or feature is implemented and needs E2E coverage
+- The user asks for tests on a recently built flow
+- Auth, navigation, or form behavior needs verification
+
+The agent has full knowledge of the test infrastructure (ports, credentials, setup/teardown pipeline, locator strategy, and auth handling). Do not repeat that context when invoking it — just describe what feature needs testing.
+
 ## Authentication
 
 The app uses **Better Auth** with email/password and session cookies.
@@ -68,35 +79,6 @@ app.get("/api/some-route", requireAuth, (req, res) => { ... });
 | `DB_PROVIDER` | server | Prisma adapter provider (e.g. `postgresql`) |
 | `BETTER_AUTH_SECRET` | server | Secret for signing sessions — validated at startup |
 | `VITE_API_URL` | client | Base URL for the Better Auth client |
-
-## E2E Testing
-
-Playwright is configured at the repo root (`playwright.config.ts`). Tests go in `e2e/`.
-
-### Test environment
-- Test Express server runs on port **3001**; test Vite client on port **5174**
-- Dedicated test database: `leitner_test` (never the dev database)
-- Config: `server/.env.test` — overrides `DATABASE_URL` and `PORT`
-- `NODE_ENV=test` causes Bun to load `.env.test` automatically with higher priority than `.env`
-- Client proxy target is overridden via `client/.env.test` (`API_TARGET=http://localhost:3001`)
-
-### Global setup (`e2e/global-setup.ts`) — runs before any test
-1. `server/src/db-ensure.ts` — creates `leitner_test` if it doesn't exist
-2. `bun prisma migrate deploy` — applies pending migrations to the test DB
-3. `bun src/seed.ts` — creates the test user (idempotent)
-
-### Global teardown (`e2e/global-teardown.ts`) — runs after all tests
-Runs `server/src/db-teardown.ts` — truncates all tables with `CASCADE`, leaving the schema intact.
-
-### Test credentials
-- Email: `test@leitner.local` (`TEST_USER_EMAIL` in `server/.env.test`)
-- Password: `TestPassword123!` (`TEST_USER_PASSWORD` in `server/.env.test`)
-
-### One-time prerequisite
-If `db-ensure.ts` cannot create the database due to permissions, run manually:
-```bash
-psql -U postgres -c 'CREATE DATABASE "leitner_test"'
-```
 
 ## Security
 
