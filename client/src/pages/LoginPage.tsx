@@ -5,15 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { signIn } from "../lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -21,6 +12,9 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+
+const inputClass =
+  "w-full bg-card border border-border rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -30,10 +24,7 @@ export default function LoginPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    shouldFocusError: true,
-  });
+  } = useForm<FormValues>({ resolver: zodResolver(schema), shouldFocusError: true });
 
   const onSubmit = async (data: FormValues) => {
     setServerError(null);
@@ -44,20 +35,27 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl">Sign in</CardTitle>
-          <CardDescription>Enter your credentials to continue.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
+    <div className="min-h-screen flex items-center justify-center bg-background px-5">
+      <div className="w-full max-w-sm">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Sign in</h1>
+          <p className="text-sm text-muted-foreground mt-1">Enter your credentials to continue.</p>
+        </div>
+
+        <div className="bg-card rounded-2xl border border-border p-6">
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="email"
+                className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+              >
+                Email
+              </label>
+              <input
                 id="email"
                 type="email"
                 placeholder="you@example.com"
+                className={inputClass}
                 aria-invalid={!!errors.email}
                 {...register("email", { onChange: () => setServerError(null) })}
               />
@@ -66,12 +64,18 @@ export default function LoginPage() {
               )}
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
+            <div className="space-y-1.5">
+              <label
+                htmlFor="password"
+                className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+              >
+                Password
+              </label>
+              <input
                 id="password"
                 type="password"
                 placeholder="••••••••"
+                className={inputClass}
                 aria-invalid={!!errors.password}
                 {...register("password", { onChange: () => setServerError(null) })}
               />
@@ -84,12 +88,12 @@ export default function LoginPage() {
               <p className="text-destructive text-sm">{serverError}</p>
             )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button type="submit" size="lg" className="w-full rounded-xl" disabled={isSubmitting}>
               {isSubmitting ? "Signing in…" : "Sign in"}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

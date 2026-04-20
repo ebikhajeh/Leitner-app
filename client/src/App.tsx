@@ -1,47 +1,57 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
 import { useSession } from "./lib/auth-client";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
+import AddWordPage from "./pages/AddWordPage";
+import BottomNav from "./components/BottomNav";
 
 function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <span className="text-sm text-gray-500">Loading…</span>
+      <span className="text-sm text-muted-foreground">Loading…</span>
     </div>
   );
 }
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { data: session, isPending } = useSession();
-
-  if (isPending) return <LoadingScreen />;
-  if (!session) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+function ProtectedRoute({ session, children }: { session: boolean; children: React.ReactNode }) {
+  return session ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
-function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
+function AppShell() {
   const { data: session, isPending } = useSession();
 
   if (isPending) return <LoadingScreen />;
-  if (session) return <Navigate to="/" replace />;
-  return <>{children}</>;
+
+  const authed = !!session;
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Routes>
+        <Route
+          path="/login"
+          element={authed ? <Navigate to="/" replace /> : <LoginPage />}
+        />
+        <Route
+          path="/"
+          element={<ProtectedRoute session={authed}><HomePage /></ProtectedRoute>}
+        />
+        <Route
+          path="/words/new"
+          element={<ProtectedRoute session={authed}><AddWordPage /></ProtectedRoute>}
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      {authed && <BottomNav />}
+    </div>
+  );
 }
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <HomePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AppShell />
+      <Toaster position="bottom-center" />
     </BrowserRouter>
   );
 }

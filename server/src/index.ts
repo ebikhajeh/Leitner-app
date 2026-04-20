@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth";
 import { requireAuth } from "./middleware/requireAuth";
+import wordsRouter from "./routes/words";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -30,6 +31,8 @@ app.get("/api/me", requireAuth, (_req, res) => {
   const { id, name, email, image } = res.locals.user;
   res.json({ user: { id, name, email, image } });
 });
+
+app.use("/api/words", wordsRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
