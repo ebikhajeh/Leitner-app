@@ -92,6 +92,63 @@ app.get("/api/some-route", requireAuth, (req, res) => { ... });
 - **Startup validation** — `server/src/lib/auth.ts` throws if `CLIENT_URL`, `DB_PROVIDER`, or `BETTER_AUTH_SECRET` are missing
 - **Rate limiting** — `express-rate-limit` on `/api/auth` in production only (20 req / 15 min); registered before the Better Auth handler in `server/src/index.ts`
 
+## Data Models
+
+### Word
+```prisma
+model Word {
+  id              String   @id @default(cuid())
+  word            String
+  meaning         String
+  exampleSentence String?
+  createdAt       DateTime @default(now())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+```
+
+## API Routes
+
+Routes are split into dedicated files under `server/src/routes/` and mounted in `server/src/index.ts`.
+
+| Method | Path | File | Auth | Description |
+|---|---|---|---|---|
+| GET | `/api/health` | `index.ts` | No | Health check |
+| GET | `/api/me` | `index.ts` | Yes | Current user profile |
+| POST | `/api/words` | `routes/words.ts` | Yes | Save a new word |
+
+To add a new resource, create `server/src/routes/<resource>.ts`, export a Router, and mount it with `app.use("/api/<resource>", router)` in `index.ts`.
+
+## Frontend Architecture
+
+### App Shell (`client/src/App.tsx`)
+- `QueryClientProvider` wraps the entire app (TanStack Query)
+- `AppShell` reads `useSession()` once — single session check, no per-route re-fetch
+- `ProtectedRoute` helper redirects to `/login` if unauthenticated
+- `BottomNav` renders once as a persistent sibling to route content (not inside route elements)
+
+### Pages & Routes
+| Path | Component | Protected |
+|---|---|---|
+| `/login` | `LoginPage` | No (redirects to `/` if authed) |
+| `/` | `HomePage` | Yes |
+| `/words/new` | `AddWordPage` | Yes |
+
+### Navigation
+- **Bottom navigation bar** (`client/src/components/BottomNav.tsx`) — fixed, 5 items (Home, Review, Practice, Add, Stats)
+- Active item derived from `useLocation()` — no props needed
+- Active color: `text-blue-500`; inactive: `text-muted-foreground`
+- Review, Practice, Stats are placeholders (navigate to `/` until those pages are built)
+
+### HTTP Client
+- **Axios instance**: `client/src/lib/api.ts` — `baseURL: "/api"`, `withCredentials: true`
+- Use `api` for all API calls (not raw `fetch`)
+- Use **TanStack Query** `useMutation` for writes, `useQuery` for reads
+
+### Toasts
+- **Sonner** `<Toaster position="bottom-center" />` mounted in `App.tsx`
+- Success toasts: `toast.success(msg, { style: { background: "white", color: "#16a34a" }, classNames: { icon: "text-green-600" } })`
+
 ## Frontend Conventions
 
 ### shadcn/ui
@@ -100,8 +157,14 @@ app.get("/api/some-route", requireAuth, (req, res) => { ... });
 - Use `@/` path alias for all imports (e.g. `@/components/ui/button`)
 - Theme tokens are CSS variables defined in `client/src/index.css` — always use semantic tokens (`bg-background`, `text-foreground`, `text-destructive`, etc.) rather than hardcoded colors
 
+### Layout
+- Content pages use `px-5 pt-6 pb-28 max-w-lg mx-auto` — `pb-28` clears the fixed bottom nav
+- Cards: `bg-card rounded-2xl border border-border p-5`
+- Form labels: raw `<label>` with `text-xs font-semibold text-muted-foreground uppercase tracking-wider`
+- Form inputs: raw `<input>` / `<textarea>` with `inputClass` (see `AddWordPage.tsx` for the pattern)
+
 ### Forms
 - Use **React Hook Form** + **Zod** for all forms
-- Wire shadcn `Input` and `Label` with RHF `register()` and `htmlFor`/`id` pairing
 - Show field errors with `<p className="text-destructive text-xs">` below the input
 - Show server errors with `<p className="text-destructive text-sm">` above the submit button
+- Wrap mutations in `useMutation` — use `isPending` from the mutation (not RHF's `isSubmitting`) for loading state

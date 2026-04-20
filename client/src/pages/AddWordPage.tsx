@@ -1,9 +1,10 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 const schema = z.object({
@@ -18,7 +19,6 @@ const inputClass =
   "w-full bg-card border border-border rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground";
 
 export default function AddWordPage() {
-  const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -26,7 +26,7 @@ export default function AddWordPage() {
     handleSubmit,
     reset,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   const wordInputRef = useRef<HTMLInputElement>(null);
@@ -36,25 +36,27 @@ export default function AddWordPage() {
   const meaningValue = watch("meaning");
   const canSubmit = !!wordValue?.trim() && !!meaningValue?.trim();
 
-  const onSubmit = async (data: FormValues) => {
-    setServerError(null);
-    const res = await fetch("/api/words", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(data),
-    });
-    if (res.ok) {
+  const { mutate: saveWord, isPending } = useMutation({
+    mutationFn: (data: FormValues) => api.post("/words", data),
+    onSuccess: () => {
       reset();
       wordInputRef.current?.focus();
       toast.success("Word saved successfully!", {
         style: { background: "white", color: "#16a34a" },
         classNames: { icon: "text-green-600" },
       });
-    } else {
-      const body = await res.json().catch(() => ({}));
-      setServerError(body.message ?? "Something went wrong. Please try again.");
-    }
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? "Something went wrong. Please try again.";
+      setServerError(message);
+    },
+  });
+
+  const onSubmit = (data: FormValues) => {
+    setServerError(null);
+    saveWord(data);
   };
 
   return (
@@ -114,8 +116,13 @@ export default function AddWordPage() {
             <p className="text-destructive text-sm">{serverError}</p>
           )}
 
-          <Button type="submit" size="lg" className="w-full rounded-xl h-14 text-base font-semibold bg-blue-500 hover:bg-blue-600" disabled={!canSubmit || isSubmitting}>
-            {isSubmitting ? "Saving…" : "Save Word"}
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full rounded-xl h-14 text-base font-semibold bg-blue-500 hover:bg-blue-600"
+            disabled={!canSubmit || isPending}
+          >
+            {isPending ? "Saving…" : "Save Word"}
           </Button>
         </form>
       </div>
