@@ -11,8 +11,8 @@
 
 ## Project Structure
 ```
-server/   ← Bun + Express REST API (port 3000)
-client/   ← React + Vite SPA (port 5173, proxies /api to server)
+server/   ← Bun + Express REST API (port 3000 dev, 3001 test)
+client/   ← React + Vite SPA (port 5173 dev / 5174 test, proxies /api to server)
 e2e/      ← Playwright E2E tests and global setup/teardown
 ```
 
@@ -50,6 +50,11 @@ Trigger it when:
 - Auth, navigation, or form behavior needs verification
 
 The agent has full knowledge of the test infrastructure (ports, credentials, setup/teardown pipeline, locator strategy, and auth handling). Do not repeat that context when invoking it — just describe what feature needs testing.
+
+### Test environment wiring
+- `playwright.config.ts` reads `server/.env.test` via dotenv and spreads all vars into the server webServer `env` option — this is what causes the test server to use the test DB and correct `CLIENT_URL`, not `NODE_ENV=test` alone
+- `client/.env.test` sets `VITE_API_URL=http://localhost:5174` so the Better Auth client routes through the Vite proxy (→ port 3001) instead of hitting the dev server directly
+- `server/.env.test` must contain all required server env vars: `DATABASE_URL`, `PORT`, `CLIENT_URL`, `BETTER_AUTH_SECRET`, `DB_PROVIDER`
 
 ## Authentication
 
