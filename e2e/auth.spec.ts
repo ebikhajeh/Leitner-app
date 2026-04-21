@@ -53,7 +53,7 @@ test.describe("Authentication", () => {
     await page.waitForURL(HOME_URL);
     // Home page renders a welcome message with the user's identifier
     await expect(
-      page.getByRole("heading", { name: /welcome back/i }),
+      page.getByText(/welcome back to your deck/i),
     ).toBeVisible();
   });
 
@@ -235,7 +235,7 @@ test.describe("Authentication", () => {
     // Should still be on the home page, not kicked to login
     await expect(page).toHaveURL(HOME_URL);
     await expect(
-      page.getByRole("heading", { name: /welcome back/i }),
+      page.getByText(/welcome back to your deck/i),
     ).toBeVisible();
   });
 
