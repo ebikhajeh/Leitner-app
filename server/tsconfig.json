@@ -6,7 +6,6 @@
     "strict": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "outDir": "dist",
     "paths": {
       "@shared/*": ["../shared/*"]
     }

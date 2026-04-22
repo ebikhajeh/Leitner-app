@@ -7,6 +7,7 @@ import { useSession } from "./lib/auth-client";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import AddWordPage from "./pages/AddWordPage";
+import ReviewPage from "./pages/ReviewPage";
 import BottomNav from "./components/BottomNav";
 
 function LoadingScreen() {
@@ -42,6 +43,10 @@ function AppShell() {
         <Route
           path="/words/new"
           element={<ProtectedRoute session={authed}><AddWordPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/review"
+          element={<ProtectedRoute session={authed}><ReviewPage /></ProtectedRoute>}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
