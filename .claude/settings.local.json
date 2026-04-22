@@ -26,7 +26,11 @@
       "Bash(powershell *)",
       "Bash(npx shadcn@latest init -d)",
       "Bash(npx shadcn@latest add input label card)",
-      "Bash(bunx playwright *)"
+      "Bash(bunx playwright *)",
+      "Bash(npx shadcn@latest add select collapsible skeleton --yes)",
+      "Bash(echo \"Server PID: $!\")",
+      "Bash(echo \"Client PID: $!\")",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }
