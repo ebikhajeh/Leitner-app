@@ -61,11 +61,45 @@ Key libraries to look up via context7:
 
 ## Dev Commands
 ```bash
-bun run dev:server      # start Express (server/)
-bun run dev:client      # start Vite (client/)
-bun run test:e2e        # run Playwright E2E tests (headless)
-bun run test:e2e:ui     # run Playwright E2E tests (UI mode)
+bun run dev:server        # start Express (server/)
+bun run dev:client        # start Vite (client/)
+bun run test:e2e          # run Playwright E2E tests (headless)
+bun run test:e2e:ui       # run Playwright E2E tests (UI mode)
+cd client && bun run test        # run component tests (single pass)
+cd client && bun run test:watch  # run component tests (watch mode)
 ```
+
+## Component Tests
+
+Component tests live next to their source files as `<Component>.test.tsx` and run via **Vitest** inside the `client/` app.
+
+### Framework & config
+- **Runner**: Vitest (`client/vite.config.ts` → `test: { globals: true, environment: "jsdom" }`)
+- **Setup file**: `client/src/test/setup.ts` — imports `@testing-library/jest-dom` matchers and exports shared helpers
+- **TypeScript**: `"vitest/globals"` is in `client/tsconfig.json` `types` so `vi`, `describe`, `it`, `expect` are available without imports
+
+### Shared test utilities (`client/src/test/`)
+| File | Export | Purpose |
+|---|---|---|
+| `setup.ts` | `setupUser()` | Returns a `userEvent.setup()` instance — use in every test that simulates user input |
+| `renderWithProviders.tsx` | `renderWithProviders(ui)` | Wraps `render()` with a fresh `QueryClient` (mutations: no retry) — use for any page that calls `useMutation` or `useQuery` |
+
+### Conventions
+- Test files sit beside the component: `src/pages/AddWordPage.test.tsx`
+- Mock `@/lib/api` with `vi.mock("@/lib/api", () => ({ default: { post: vi.fn() } }))` — never make real HTTP calls
+- Route `api.post` by URL using a `mockPost({ words: ..., generateWord: ... })` helper so save and AI flows are clearly separated
+- Mock `framer-motion` to strip animation props and render plain `<div>` — avoids jsdom animation warnings
+- Mock `sonner` toast to assert calls without rendering the Toaster
+- Use `vi.clearAllMocks()` in `beforeEach`
+- Prefer `screen.findBy*` (async) after user interactions that trigger state updates
+
+### What to test
+- Initial render: key elements present, buttons disabled in empty state
+- Button enable/disable logic driven by form field values
+- Form validation errors (Zod schema enforcement)
+- Mutation flows: pending state, success (toast + reset), server error display and clearing
+- Hook-driven flows: AI generation success, failure, and loading state
+- UI interactions: collapsible panels, conditional rendering
 
 ## E2E Tests
 

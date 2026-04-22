@@ -30,7 +30,8 @@
       "Bash(npx shadcn@latest add select collapsible skeleton --yes)",
       "Bash(echo \"Server PID: $!\")",
       "Bash(echo \"Client PID: $!\")",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(npx kill-port *)"
     ]
   }
 }
