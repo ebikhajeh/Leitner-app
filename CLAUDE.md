@@ -87,22 +87,38 @@ Component tests live next to their source files as `<Component>.test.tsx` and ru
 | `setup.ts` | `setupUser()` | Returns a `userEvent.setup()` instance — use in every test that simulates user input |
 | `renderWithProviders.tsx` | `renderWithProviders(ui)` | Wraps `render()` with a fresh `QueryClient` (mutations: no retry) — use for any page that calls `useMutation` or `useQuery` |
 
+`renderWithProviders` only disables mutation retries. For pages that use `useQuery` and need to test error states, create a local render helper with a `QueryClient` that disables **both** query and mutation retries:
+```ts
+function renderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(<QueryClientProvider client={queryClient}><MyPage /></QueryClientProvider>);
+}
+```
+
 ### Conventions
 - Test files sit beside the component: `src/pages/AddWordPage.test.tsx`
-- Mock `@/lib/api` with `vi.mock("@/lib/api", () => ({ default: { post: vi.fn() } }))` — never make real HTTP calls
+- Mock `@/lib/api` with `vi.mock("@/lib/api", () => ({ default: { post: vi.fn(), get: vi.fn(), patch: vi.fn() } }))` — never make real HTTP calls
 - Route `api.post` by URL using a `mockPost({ words: ..., generateWord: ... })` helper so save and AI flows are clearly separated
-- Mock `framer-motion` to strip animation props and render plain `<div>` — avoids jsdom animation warnings
+- For pages using `useQuery`, mock `api.get` with `mockResolvedValue` / `mockResolvedValueOnce` per test
+- Mock `framer-motion` to strip animation props and render plain `<div>` — avoids jsdom animation warnings; include the `exit` prop in the stripped set
 - Mock `sonner` toast to assert calls without rendering the Toaster
-- Use `vi.clearAllMocks()` in `beforeEach`
+- Use `vi.clearAllMocks()` in `beforeEach`; set up default `mockResolvedValue` for patch/mutations in `beforeEach` too
 - Prefer `screen.findBy*` (async) after user interactions that trigger state updates
+- Find nav buttons (no aria-label) by filtering `getAllByRole("button")` with `.closest("selector")` rather than by text or index
 
 ### What to test
+- Loading state: skeleton/spinner visible before query resolves
+- Error state: error message shown when query rejects (requires `retry: false` on QueryClient)
+- Empty state: correct message when API returns empty list
 - Initial render: key elements present, buttons disabled in empty state
 - Button enable/disable logic driven by form field values
 - Form validation errors (Zod schema enforcement)
 - Mutation flows: pending state, success (toast + reset), server error display and clearing
 - Hook-driven flows: AI generation success, failure, and loading state
-- UI interactions: collapsible panels, conditional rendering
+- UI interactions: collapsible panels, conditional rendering, mode toggles
+- Session complete: shown after last item rated; singular/plural copy; re-entry button present
 
 ## E2E Tests
 
