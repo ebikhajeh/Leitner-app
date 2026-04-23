@@ -14,7 +14,7 @@ export function ReviewModeToggle({ mode, onChange }: ReviewModeToggleProps) {
       <button
         type="button"
         onClick={() => onChange("normal")}
-        className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+        className={`flex-1 py-3 rounded-lg text-sm font-semibold tracking-tight transition-all duration-200 cursor-pointer ${
           mode === "normal"
             ? "bg-blue-500 text-white shadow-sm"
             : "text-muted-foreground hover:text-foreground"
@@ -26,7 +26,7 @@ export function ReviewModeToggle({ mode, onChange }: ReviewModeToggleProps) {
       <button
         type="button"
         onClick={() => onChange(toggle(mode))}
-        className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-card transition-all duration-200 shrink-0"
+        className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-card transition-all duration-200 shrink-0 cursor-pointer"
         aria-label="Switch mode"
       >
         <ArrowLeftRight className="w-3.5 h-3.5" />
@@ -35,7 +35,7 @@ export function ReviewModeToggle({ mode, onChange }: ReviewModeToggleProps) {
       <button
         type="button"
         onClick={() => onChange("reverse")}
-        className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+        className={`flex-1 py-2 rounded-lg text-sm font-semibold tracking-tight transition-all duration-200 cursor-pointer ${
           mode === "reverse"
             ? "bg-blue-500 text-white shadow-sm"
             : "text-muted-foreground hover:text-foreground"

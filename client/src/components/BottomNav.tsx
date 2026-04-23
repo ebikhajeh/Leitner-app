@@ -30,7 +30,7 @@ export default function BottomNav() {
             <button
               key={key}
               onClick={() => navigate(path)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors ${
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors cursor-pointer ${
                 isActive ? "text-blue-500" : "text-muted-foreground hover:text-foreground"
               }`}
             >

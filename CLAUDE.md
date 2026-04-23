@@ -406,6 +406,7 @@ client/src/
 - Show Answer button: `bg-blue-500 hover:bg-blue-600 text-white`
 - Progress bar fill: `bg-blue-500`
 - BottomNav active icon: `text-blue-500`
+- Difficulty buttons: `bg-destructive text-white` / `bg-amber-400 text-white` / `bg-green-500 text-white` — all use `text-white` (not semantic foreground tokens)
 
 ### `useReviewWord` invalidation
 `onSettled` (not `onSuccess`) invalidates `["words","due"]` — fires even on network errors so the cache never gets stuck stale.
@@ -422,6 +423,15 @@ client/src/
 - Theme tokens are CSS variables defined in `client/src/index.css` — always use semantic tokens (`bg-background`, `text-foreground`, `text-destructive`, etc.) rather than hardcoded colors
 - Long `className` strings in shadcn wrappers are extracted into named constants at the top of the file
 - Custom wrapper components get `.displayName` for React DevTools (skip primitive re-exports where TypeScript disallows it)
+
+### CSS token values — do not revert
+- `--background: oklch(0.97 0 0)` — intentionally off-white (not pure white) so cards visually elevate above the page surface
+- `--card: oklch(1 0 0)` — pure white; cards must remain lighter than the background
+- Both tokens differ by design; do not set them to the same value
+
+### Interactive elements
+- All clickable elements must include `cursor-pointer` so the cursor changes to a hand on hover
+- The shadcn `Button` base class already includes `cursor-pointer` — raw `<button>` elements need it added manually
 
 ### Layout
 - Content pages use `px-5 pt-6 pb-28 max-w-lg mx-auto` — `pb-28` clears the fixed bottom nav

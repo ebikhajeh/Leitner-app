@@ -55,7 +55,7 @@ export function ReviewSessionCompleteState({ total, onRestart }: ReviewSessionCo
       <button
         type="button"
         onClick={onRestart}
-        className="mt-2 px-6 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
+        className="mt-2 px-6 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors cursor-pointer"
       >
         Review Again
       </button>

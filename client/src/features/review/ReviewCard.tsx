@@ -21,7 +21,7 @@ function WordHeading({ text }: { text: string }) {
   return (
     <div className="flex items-center justify-center gap-2">
       <h2 className="text-3xl font-bold">{text}</h2>
-      <button type="button" className="text-muted-foreground hover:text-primary transition-colors" aria-label="Pronounce word">
+      <button type="button" className="text-muted-foreground hover:text-primary transition-colors cursor-pointer" aria-label="Pronounce word">
         <Volume2 className="w-5 h-5" />
       </button>
     </div>
@@ -30,7 +30,7 @@ function WordHeading({ text }: { text: string }) {
 
 function MeaningBlock({ text }: { text: string }) {
   return (
-    <div className="bg-accent/50 rounded-xl p-4 text-left">
+    <div className="bg-accent/50 rounded-xl p-4 text-center">
       <p className="text-xs text-muted-foreground font-medium mb-1">Meaning</p>
       <p className="font-semibold whitespace-pre-wrap">{text}</p>
     </div>
@@ -39,7 +39,7 @@ function MeaningBlock({ text }: { text: string }) {
 
 function ExampleBlock({ text }: { text: string }) {
   return (
-    <div className="bg-accent/50 rounded-xl p-4 text-left">
+    <div className="bg-accent/50 rounded-xl p-4 text-center">
       <p className="text-xs text-muted-foreground font-medium mb-1">Example</p>
       <p className="italic whitespace-pre-wrap">{text}</p>
     </div>
@@ -62,6 +62,9 @@ export function ReviewCard({ word, phase, mode, onReveal, onDifficulty, isPendin
         className="w-full bg-card rounded-3xl border border-border p-8 shadow-lg"
       >
         <div className="text-center space-y-4">
+          <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+            {isNormal ? "Recall the meaning" : "Recall the word"}
+          </p>
           {promptNode}
 
           {phase === "recall" ? (

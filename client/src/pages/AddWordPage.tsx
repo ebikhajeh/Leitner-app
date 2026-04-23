@@ -89,6 +89,10 @@ export default function AddWordPage() {
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
         />
+
+        <p className="text-xs text-center text-muted-foreground">
+          AI helps you create cards faster. Fields stay editable.
+        </p>
       </div>
     </FormProvider>
   );
