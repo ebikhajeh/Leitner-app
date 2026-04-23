@@ -64,7 +64,11 @@ model Word {
   word            String
   meaning         String
   exampleSentence String?
-  createdAt       DateTime @default(now())
-  userId          String
+  createdAt        DateTime  @default(now())
+  box              Int       @default(1)
+  nextReviewAt     DateTime  @default(now())
+  lastReviewedAt   DateTime?
+  reviewCount      Int       @default(0)
+  userId           String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

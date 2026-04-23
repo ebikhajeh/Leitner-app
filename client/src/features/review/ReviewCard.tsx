@@ -14,6 +14,7 @@ interface ReviewCardProps {
   mode: ReviewMode;
   onReveal: () => void;
   onDifficulty: (difficulty: Difficulty) => void;
+  isPending?: boolean;
 }
 
 function WordHeading({ text }: { text: string }) {
@@ -45,7 +46,7 @@ function ExampleBlock({ text }: { text: string }) {
   );
 }
 
-export function ReviewCard({ word, phase, mode, onReveal, onDifficulty }: ReviewCardProps) {
+export function ReviewCard({ word, phase, mode, onReveal, onDifficulty, isPending = false }: ReviewCardProps) {
   const isNormal = mode === "normal";
   const promptNode = isNormal ? <WordHeading text={word.word} /> : <MeaningBlock text={word.meaning} />;
   const revealNode = isNormal ? <MeaningBlock text={word.meaning} /> : <WordHeading text={word.word} />;
@@ -69,7 +70,7 @@ export function ReviewCard({ word, phase, mode, onReveal, onDifficulty }: Review
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
               {revealNode}
               {word.exampleSentence && <ExampleBlock text={word.exampleSentence} />}
-              <DifficultyButtons onSelect={onDifficulty} />
+              <DifficultyButtons onSelect={onDifficulty} isPending={isPending} />
             </motion.div>
           )}
         </div>

@@ -23,17 +23,20 @@ Each app has its own `node_modules` — they are not a Bun workspace.
 ```
 server/src/
   routes/       ← one file per resource (words.ts, generate.ts)
-  lib/          ← auth.ts, openai.ts (singleton), validateWord.ts (re-export of @shared)
-  middleware/   ← requireAuth.ts
+  controllers/  ← one file per resource (wordsController.ts)
+  lib/          ← auth.ts, openai.ts (singleton), validateWord.ts (re-export of @shared),
+                   wordService.ts, wordSchemas.ts, reviewScheduler.ts
+  middleware/   ← requireAuth.ts, validate.ts
   types/        ← express.d.ts (augments Express.Locals)
 ```
 
 ### Client layout
 ```
 client/src/
-  pages/          ← thin route-level orchestrators (AddWordPage.tsx)
-  features/       ← co-located feature components + types (add-word/)
-  hooks/          ← custom React hooks (useGenerateWord.ts)
+  pages/          ← thin route-level orchestrators (AddWordPage.tsx, ReviewPage.tsx)
+  features/       ← co-located feature components + types (add-word/, review/)
+  hooks/          ← custom React hooks (useGenerateWord.ts, useDueWords.ts,
+                     useReviewWord.ts, useReviewSession.ts)
   components/ui/  ← shadcn components
   config/         ← app-wide constants (languages.ts)
   lib/            ← utilities (api.ts, auth-client.ts, getApiErrorMessage.ts)
@@ -181,15 +184,23 @@ app.get("/api/some-route", requireAuth, (req, res) => { ... });
 ### Word
 ```prisma
 model Word {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   word            String
   meaning         String
   exampleSentence String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
+  box             Int       @default(1)
+  nextReviewAt    DateTime  @default(now())
+  lastReviewedAt  DateTime?
+  reviewCount     Int       @default(0)
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 ```
+
+- `box` is the Leitner level (1–6), mapping to intervals `[1, 3, 7, 14, 30, 60]` days
+- `nextReviewAt` is stored as UTC midnight of the target day
+- `lastReviewedAt` and `reviewCount` are informational — not used for scheduling
 
 ## API Routes
 
@@ -199,10 +210,31 @@ Routes are split into dedicated files under `server/src/routes/` and mounted in 
 |---|---|---|---|---|
 | GET | `/api/health` | `index.ts` | No | Health check |
 | GET | `/api/me` | `index.ts` | Yes | Current user profile |
+| GET | `/api/words` | `routes/words.ts` | Yes | List all words for the user |
+| GET | `/api/words/due` | `routes/words.ts` | Yes | Words due for review (`nextReviewAt <= now`) |
 | POST | `/api/words` | `routes/words.ts` | Yes | Save a new word |
+| PATCH | `/api/words/:id/review` | `routes/words.ts` | Yes | Submit difficulty rating, advance Leitner box |
 | POST | `/api/generate-word` | `routes/generate.ts` | Yes | AI-generate meaning + example |
 
 To add a new resource, create `server/src/routes/<resource>.ts`, export a Router, and mount it with `app.use("/api/<resource>", router)` in `index.ts`.
+
+### Server architecture pattern
+
+Route → validate middleware → controller → service → DB
+
+```
+routes/words.ts          ← declarative: requireAuth, validate(schema), controller fn
+middleware/validate.ts   ← validate(schema) parses req.body with Zod; returns first error as { message }
+controllers/wordsController.ts  ← reads req/res, calls service, sends response
+lib/wordService.ts       ← all Prisma queries; no Express types
+lib/wordSchemas.ts       ← Zod schemas (createWordSchema, reviewWordSchema)
+```
+
+**`validate.ts` middleware**: wraps a Zod schema, parses `req.body`, replaces it with the parsed result, or returns `400 { message }` on first error. Never do inline Zod parsing in a controller.
+
+**`wordService.ts`** exports: `getWordsByUser`, `getDueWords`, `createWord`, `reviewWord`. The `reviewWord` function calls `scheduleNextReview` and updates `box`, `nextReviewAt`, `lastReviewedAt`, and increments `reviewCount`.
+
+**`reviewScheduler.ts`** (`server/src/lib/`): pure function `scheduleNextReview(currentLevel, difficulty)` → `{ box, nextReviewAt }`. Uses UTC date arithmetic (`setUTCHours(0,0,0,0)` + `setUTCDate`) so scheduling is timezone-independent. Levels map to intervals `[1, 3, 7, 14, 30, 60]` days.
 
 ## Shared Validation (`shared/wordValidation.ts`)
 
@@ -261,12 +293,13 @@ Returns: `{ targetLanguage, setTargetLanguage, isGenerating, aiError, hasGenerat
 | `/login` | `LoginPage` | No (redirects to `/` if authed) |
 | `/` | `HomePage` | Yes |
 | `/words/new` | `AddWordPage` | Yes |
+| `/review` | `ReviewPage` | Yes |
 
 ### Navigation
 - **Bottom navigation bar** (`client/src/components/BottomNav.tsx`) — fixed, 5 items (Home, Review, Practice, Add, Stats)
 - Active item derived from `useLocation()` — no props needed
 - Active color: `text-blue-500`; inactive: `text-muted-foreground`
-- Review, Practice, Stats are placeholders (navigate to `/` until those pages are built)
+- Practice, Stats are still placeholders (navigate to `/` until built)
 
 ### HTTP Client
 - **Axios instance**: `client/src/lib/api.ts` — `baseURL: "/api"`, `withCredentials: true`
@@ -311,6 +344,58 @@ client/src/
 - Collapsible, open by default
 - Language selector reads from `client/src/config/languages.ts`
 - Generate button disabled unless word field has content and `!isGenerating`
+
+## Feature Architecture — Review
+
+`ReviewPage` is a thin UI renderer. All session logic lives in `useReviewSession`; all feature components live under `client/src/features/review/`.
+
+```
+client/src/
+  pages/ReviewPage.tsx                    ← pure UI renderer; consumes useReviewSession
+  hooks/useReviewSession.ts               ← all session state + navigation logic
+  hooks/useDueWords.ts                    ← useQuery for GET /api/words/due
+  hooks/useReviewWord.ts                  ← useMutation for PATCH /api/words/:id/review;
+                                             invalidates ["words","due"] onSettled
+  features/review/
+    types.ts                              ← ReviewMode, Word interface
+    ReviewCard.tsx                        ← card UI; derives promptNode/revealNode from mode
+    DifficultyButtons.tsx                 ← Hard / Medium / Easy buttons; accepts isPending
+    ShowAnswerButton.tsx                  ← reusable "Show Answer" button (blue-500)
+    ReviewModeToggle.tsx                  ← Normal ↔ Reverse toggle; full-width, above progress
+    ReviewProgress.tsx                    ← progress bar (blue-500 fill); divide-by-zero safe
+    ReviewStates.tsx                      ← ReviewLoadingState, ReviewErrorState,
+                                             ReviewNoDueState, ReviewSessionCompleteState,
+                                             ReviewEmptyState
+```
+
+### Session state pattern (`useReviewSession`)
+- `sessionCards: Word[] | null` — initialized once from query cache, then maintained locally; `null` means "not yet initialized"
+- `useEffect` guards with `!isFetching` before initializing — prevents stale-cache init when the query is still refetching in background
+- `resetSession()` sets `sessionCards = null`; the `useEffect` re-fires after the next fresh fetch completes
+- After rating, the reviewed card is immediately removed from `sessionCards` (optimistic local removal); query invalidation from `useReviewWord.onSettled` prepares fresh data for the next session
+
+### Review modes
+- **Normal**: Word → (reveal) → Meaning + example
+- **Reverse**: Meaning → (reveal) → Word
+- `ReviewCard` derives `promptNode` / `revealNode` from `mode` — single JSX structure, no duplication
+
+### Spaced repetition
+- Difficulty "easy" → `box + 1` (max 6); "hard" → `box - 1` (min 1); "medium" → unchanged
+- Box levels map to intervals: `[1, 3, 7, 14, 30, 60]` days
+- `nextReviewAt` is set to UTC midnight of the target day — scheduling is timezone-independent; users in UTC-offset timezones see cards become available the evening before (correct behavior)
+
+### Color convention — critical
+**`--primary` maps to black in this app's neutral theme.** Never use `bg-primary` or `text-primary` for interactive/active UI in the review feature. Always use explicit `blue-500`:
+- Active toggle state: `bg-blue-500 text-white`
+- Show Answer button: `bg-blue-500 hover:bg-blue-600 text-white`
+- Progress bar fill: `bg-blue-500`
+- BottomNav active icon: `text-blue-500`
+
+### `useReviewWord` invalidation
+`onSettled` (not `onSuccess`) invalidates `["words","due"]` — fires even on network errors so the cache never gets stuck stale.
+
+### `useDueWords` query key
+`["words", "due"]` — invalidated both by `useReviewWord` (after rating) and by `AddWordPage` save mutation (after adding a new word), ensuring the next session picks up new cards.
 
 ## Frontend Conventions
 

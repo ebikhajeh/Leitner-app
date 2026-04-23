@@ -8,9 +8,10 @@ const BUTTONS: { label: string; value: Difficulty; className: string }[] = [
 
 interface DifficultyButtonsProps {
   onSelect: (difficulty: Difficulty) => void;
+  isPending?: boolean;
 }
 
-export function DifficultyButtons({ onSelect }: DifficultyButtonsProps) {
+export function DifficultyButtons({ onSelect, isPending = false }: DifficultyButtonsProps) {
   return (
     <div className="pt-2 space-y-2">
       <p className="text-xs text-muted-foreground font-medium">How well did you know this?</p>
@@ -18,8 +19,10 @@ export function DifficultyButtons({ onSelect }: DifficultyButtonsProps) {
         {BUTTONS.map(({ label, value, className }) => (
           <button
             key={value}
+            type="button"
             onClick={() => onSelect(value)}
-            className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-transform active:scale-95 ${className}`}
+            disabled={isPending}
+            className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-transform active:scale-95 disabled:opacity-50 disabled:pointer-events-none ${className}`}
           >
             {label}
           </button>

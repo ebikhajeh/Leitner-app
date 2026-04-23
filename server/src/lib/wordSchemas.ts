@@ -9,3 +9,7 @@ export const createWordSchema = z.object({
   meaning: z.string().trim().min(1, "Meaning is required"),
   exampleSentence: z.string().trim().optional().transform((v) => v || null),
 });
+
+export const reviewWordSchema = z.object({
+  difficulty: z.enum(["hard", "medium", "easy"]),
+});

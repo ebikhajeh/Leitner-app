@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useGenerateWord } from "@/hooks/useGenerateWord";
@@ -36,9 +36,12 @@ export default function AddWordPage() {
     });
   };
 
+  const queryClient = useQueryClient();
+
   const { mutate: saveWord, isPending } = useMutation({
     mutationFn: (data: AddWordFormValues) => api.post("/words", data),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["words", "due"] });
       reset();
       resetGenerated();
       wordInputRef.current?.focus();

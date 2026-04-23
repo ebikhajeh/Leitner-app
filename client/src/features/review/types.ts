@@ -6,4 +6,8 @@ export interface Word {
   meaning: string;
   exampleSentence: string | null;
   createdAt: string;
+  box: number;
+  nextReviewAt: string;
+  lastReviewedAt: string | null;
+  reviewCount: number;
 }

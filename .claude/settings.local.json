@@ -32,7 +32,8 @@
       "Bash(echo \"Client PID: $!\")",
       "Bash(echo \"exit: $?\")",
       "Bash(npx kill-port *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(bun prisma *)"
     ]
   }
 }
