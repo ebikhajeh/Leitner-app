@@ -11,8 +11,8 @@ export function ReviewProgress({ current, total }: ReviewProgressProps) {
       </span>
       <div className="flex-1 mx-4 h-1.5 bg-muted rounded-full overflow-hidden">
         <div
-          className="h-full bg-primary rounded-full transition-all duration-300"
-          style={{ width: `${(current / total) * 100}%` }}
+          className="h-full bg-blue-500 rounded-full transition-all duration-300"
+          style={{ width: total > 0 ? `${(current / total) * 100}%` : "0%" }}
         />
       </div>
     </div>

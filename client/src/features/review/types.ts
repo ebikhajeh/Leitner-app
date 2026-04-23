@@ -1,3 +1,5 @@
+export type ReviewMode = "normal" | "reverse";
+
 export interface Word {
   id: string;
   word: string;

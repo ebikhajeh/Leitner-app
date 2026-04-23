@@ -4,12 +4,15 @@ import { Button } from "@/components/ui/button";
 import { useWords } from "@/hooks/useWords";
 import { ReviewCard, type ReviewPhase } from "@/features/review/ReviewCard";
 import { ReviewProgress } from "@/features/review/ReviewProgress";
+import { ReviewModeToggle } from "@/features/review/ReviewModeToggle";
 import { ReviewLoadingState, ReviewErrorState, ReviewEmptyState } from "@/features/review/ReviewStates";
+import type { ReviewMode } from "@/features/review/types";
 
 export default function ReviewPage() {
   const { data: words, isLoading, isError } = useWords();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [phase, setPhase] = useState<ReviewPhase>("recall");
+  const [mode, setMode] = useState<ReviewMode>("normal");
 
   if (isLoading) return <ReviewLoadingState />;
   if (isError) return <ReviewErrorState />;
@@ -23,17 +26,24 @@ export default function ReviewPage() {
     setPhase("recall");
   };
 
+  const handleModeChange = (next: ReviewMode) => {
+    setMode(next);
+    setPhase("recall");
+  };
+
   const prev = () => navigate(Math.max(currentIndex - 1, 0));
   const next = () => navigate(Math.min(currentIndex + 1, total - 1));
 
   return (
     <div className="px-5 pt-6 pb-28 max-w-lg mx-auto flex flex-col min-h-[calc(100vh-4rem)]">
+      <ReviewModeToggle mode={mode} onChange={handleModeChange} />
       <ReviewProgress current={currentIndex + 1} total={total} />
 
       <div className="flex-1 flex items-center justify-center">
         <ReviewCard
           word={card}
           phase={phase}
+          mode={mode}
           onReveal={() => setPhase("revealed")}
           onDifficulty={next}
         />
