@@ -22,10 +22,11 @@ Each app has its own `node_modules` — they are not a Bun workspace.
 ### Server layout
 ```
 server/src/
-  routes/       ← one file per resource (words.ts, generate.ts)
+  routes/       ← one file per resource (words.ts, generate.ts, dashboard.ts)
   controllers/  ← one file per resource (wordsController.ts)
   lib/          ← auth.ts, openai.ts (singleton), validateWord.ts (re-export of @shared),
-                   wordService.ts, wordSchemas.ts, reviewScheduler.ts
+                   wordService.ts, wordSchemas.ts, reviewScheduler.ts,
+                   dashboardService.ts, dashboardConfig.ts
   middleware/   ← requireAuth.ts, validate.ts
   types/        ← express.d.ts (augments Express.Locals)
 ```
@@ -33,10 +34,10 @@ server/src/
 ### Client layout
 ```
 client/src/
-  pages/          ← thin route-level orchestrators (AddWordPage.tsx, ReviewPage.tsx)
-  features/       ← co-located feature components + types (add-word/, review/)
+  pages/          ← thin route-level orchestrators (HomePage.tsx, AddWordPage.tsx, ReviewPage.tsx)
+  features/       ← co-located feature components + types (add-word/, review/, dashboard/)
   hooks/          ← custom React hooks (useGenerateWord.ts, useDueWords.ts,
-                     useReviewWord.ts, useReviewSession.ts)
+                     useReviewWord.ts, useReviewSession.ts, useDashboard.ts)
   components/ui/  ← shadcn components
   config/         ← app-wide constants (languages.ts)
   lib/            ← utilities (api.ts, auth-client.ts, getApiErrorMessage.ts)
@@ -231,6 +232,7 @@ Routes are split into dedicated files under `server/src/routes/` and mounted in 
 | POST | `/api/words` | `routes/words.ts` | Yes | Save a new word |
 | PATCH | `/api/words/:id/review` | `routes/words.ts` | Yes | Submit difficulty rating, advance Leitner box |
 | POST | `/api/generate-word` | `routes/generate.ts` | Yes | AI-generate meaning + example |
+| GET | `/api/dashboard` | `routes/dashboard.ts` | Yes | Gamification stats for the home dashboard |
 
 To add a new resource, create `server/src/routes/<resource>.ts`, export a Router, and mount it with `app.use("/api/<resource>", router)` in `index.ts`.
 
@@ -327,6 +329,55 @@ Returns: `{ targetLanguage, setTargetLanguage, isGenerating, aiError, hasGenerat
 - **Sonner** `<Toaster position="bottom-center" />` mounted in `App.tsx`
 - Success toasts: `toast.success(msg, { style: { background: "white", color: "#16a34a" }, classNames: { icon: "text-green-600" } })`
 
+## Feature Architecture — Dashboard (Home)
+
+`HomePage` is a thin orchestrator. All feature components live under `client/src/features/dashboard/`.
+
+```
+client/src/
+  pages/HomePage.tsx                    ← orchestrator: useDashboard, useSession, layout
+  features/dashboard/
+    types.ts                            ← DashboardStats interface
+    StreakXpRow.tsx                      ← streak + XP stat cards (side by side)
+    LevelCard.tsx                        ← trophy icon, level label, XP progress bar
+    TodayProgress.tsx                    ← words reviewed today, cards due, weekly goal bar
+  hooks/useDashboard.ts                 ← useQuery for GET /api/dashboard; staleTime 60 s
+```
+
+### Server — `dashboardService.ts`
+- `getDashboardStats(userId)` — single export; runs two parallel Prisma queries (words + due count)
+- **XP**: sum of `reviewCount × XP_PER_REVIEW` across all words
+- **Level**: `floor(xp / XP_PER_LEVEL) + 1`; `xpInLevel = xp % XP_PER_LEVEL`
+- **Streak**: unique UTC days derived from `lastReviewedAt`; consecutive run ending today or yesterday
+- **reviewedToday**: unique cards with `lastReviewedAt >= UTC midnight today` (distinct-card count, not total actions)
+- **weeklyReviews**: cards with `lastReviewedAt >= UTC midnight 7 days ago`
+
+### Server — `dashboardConfig.ts`
+Tunable gamification constants (`XP_PER_REVIEW`, `XP_PER_LEVEL`, `WEEKLY_GOAL`). Edit here when game-design values change — do not inline them in `dashboardService.ts`.
+
+### Date helpers in `dashboardService.ts`
+- `utcDayStart(d)` → `Date` at UTC midnight for the given date
+- `utcDayNumber(d)` → integer day index (`utcDayStart(d).getTime() / MS_PER_DAY`)
+
+All date arithmetic uses UTC to match `reviewScheduler.ts`. This means cards become available at 00:00 UTC; users in UTC-minus timezones see cards appear the evening before — this is documented correct behavior.
+
+### HomePage responsibilities
+- Calls `useDashboard()` and `useSession()` — no other data fetching
+- Renders skeleton placeholders while loading; a retry-able error card on failure
+- `getGreeting()` is called inside the component (not at module scope) so it reflects the current hour on each render
+- `AnimatedSection` — local helper wrapping `motion.div` with `opacity/y` entrance; accepts `delay` and `y` props
+
+### `useDashboard` query key
+`["dashboard"]` — no custom `staleTime`. Invalidated by `useReviewWord` (after rating) and the add-word mutation in `AddWordPage` (after saving), so stats refresh immediately after any action that changes them. If you add a mutation that affects XP, streak, or due count, invalidate `["dashboard"]` in its `onSettled`.
+
+### CSS custom tokens (added for dashboard)
+Defined in `client/src/index.css` `@theme inline`:
+- `--color-streak` — orange (flame icon, streak card bg tint)
+- `--color-xp` — violet (zap icon, XP card bg tint)
+- `--color-success` — green (weekly goal progress bar)
+- `--color-warning` — amber (trophy icon in LevelCard)
+- `--animate-pulse-glow` — blue box-shadow + subtle scale(1.015) pulse on the Start Review CTA; glow color matches `bg-blue-500` so it's visible against the off-white background
+
 ## Feature Architecture — Add Word
 
 `AddWordPage` is a thin orchestrator. All feature code lives under `client/src/features/add-word/`.
@@ -388,7 +439,21 @@ client/src/
 - `sessionCards: Word[] | null` — initialized once from query cache, then maintained locally; `null` means "not yet initialized"
 - `useEffect` guards with `!isFetching` before initializing — prevents stale-cache init when the query is still refetching in background
 - `resetSession()` sets `sessionCards = null`; the `useEffect` re-fires after the next fresh fetch completes
-- After rating, the reviewed card is immediately removed from `sessionCards` (optimistic local removal); query invalidation from `useReviewWord.onSettled` prepares fresh data for the next session
+- After rating **medium/easy**, the card is immediately removed from `sessionCards` (optimistic local removal); query invalidation from `useReviewWord.onSettled` prepares fresh data for the next session
+- After rating **hard**, the card is requeued at the end of `sessionCards` for same-session reinforcement (see below)
+
+### Hard card requeue behavior
+- `hardRepeatCounts: Map<string, number>` tracks how many times each card has been requeued this session
+- `MAX_HARD_REPEATS = 5` (module-level constant in `useReviewSession.ts`) — a card is requeued up to 5 times; on the 6th hard rating it is removed normally
+- On requeue: card is appended to end of `sessionCards` (`[...without, card]`); `currentIndex` is clamped to `Math.max(0, Math.min(i, without.length - 1))` to prevent negative indices when the hard card was the only one
+- The backend is still called via `reviewWord` on every hard rating — if the user exits mid-session, the card is already scheduled for 1 day out (the minimum interval)
+- `resetSession()` clears `hardRepeatCounts` so a fresh session treats all cards as first-time
+
+### Review session complete screen
+`ReviewSessionCompleteState` shows "You reviewed X cards" with two navigation actions:
+- **Back to Home** (outline style) — `navigate("/")`
+- **Add New Words** (blue-500 style) — `navigate("/words/new")`
+The old "Review Again" button was removed — reviewed cards are scheduled to future dates, so restarting immediately shows the "no cards due" state.
 
 ### Review modes
 - **Normal**: Word → (reveal) → Meaning + example
@@ -409,7 +474,7 @@ client/src/
 - Difficulty buttons: `bg-destructive text-white` / `bg-amber-400 text-white` / `bg-green-500 text-white` — all use `text-white` (not semantic foreground tokens)
 
 ### `useReviewWord` invalidation
-`onSettled` (not `onSuccess`) invalidates `["words","due"]` — fires even on network errors so the cache never gets stuck stale.
+`onSettled` (not `onSuccess`) invalidates both `["words","due"]` and `["dashboard"]` — fires even on network errors so neither cache gets stuck stale.
 
 ### `useDueWords` query key
 `["words", "due"]` — invalidated both by `useReviewWord` (after rating) and by `AddWordPage` save mutation (after adding a new word), ensuring the next session picks up new cards.
@@ -427,7 +492,8 @@ client/src/
 ### CSS token values — do not revert
 - `--background: oklch(0.97 0 0)` — intentionally off-white (not pure white) so cards visually elevate above the page surface
 - `--card: oklch(1 0 0)` — pure white; cards must remain lighter than the background
-- Both tokens differ by design; do not set them to the same value
+- `--muted: oklch(0.925 0 0)` — intentionally darker than `--background` so `Skeleton` placeholders (`bg-muted`) are visible; do not set equal to `--background`
+- All three values must remain distinct; do not collapse any two to the same value
 
 ### Interactive elements
 - All clickable elements must include `cursor-pointer` so the cursor changes to a hand on hover

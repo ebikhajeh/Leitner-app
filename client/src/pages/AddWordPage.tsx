@@ -42,6 +42,7 @@ export default function AddWordPage() {
     mutationFn: (data: AddWordFormValues) => api.post("/words", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["words", "due"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       reset();
       resetGenerated();
       wordInputRef.current?.focus();

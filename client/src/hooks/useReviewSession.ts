@@ -4,6 +4,8 @@ import { useReviewWord } from "@/hooks/useReviewWord";
 import type { ReviewPhase, Difficulty } from "@/features/review/ReviewCard";
 import type { ReviewMode, Word } from "@/features/review/types";
 
+const MAX_HARD_REPEATS = 5;
+
 export function useReviewSession() {
   const { data: words, isLoading, isFetching, isError } = useDueWords();
   const { mutate: reviewWord, isPending } = useReviewWord();
@@ -13,6 +15,7 @@ export function useReviewSession() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [phase, setPhase] = useState<ReviewPhase>("recall");
   const [mode, setMode] = useState<ReviewMode>("normal");
+  const [hardRepeatCounts, setHardRepeatCounts] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (words !== undefined && !isFetching && sessionCards === null) {
@@ -26,6 +29,7 @@ export function useReviewSession() {
     setSessionCards(null);
     setCurrentIndex(0);
     setPhase("recall");
+    setHardRepeatCounts(new Map());
   };
 
   const navigate = (next: number) => {
@@ -42,9 +46,20 @@ export function useReviewSession() {
     if (!sessionCards) return;
     const card = sessionCards[currentIndex];
     reviewWord({ wordId: card.id, difficulty });
-    const remaining = sessionCards.filter(w => w.id !== card.id);
-    setSessionCards(remaining);
-    setCurrentIndex(i => Math.max(0, Math.min(i, remaining.length - 1)));
+
+    const without = sessionCards.filter(w => w.id !== card.id);
+    const hardCount = hardRepeatCounts.get(card.id) ?? 0;
+
+    if (difficulty === "hard" && hardCount < MAX_HARD_REPEATS) {
+      // Requeue at end until the user rates Medium/Easy or the repeat cap is hit.
+      setSessionCards([...without, card]);
+      setCurrentIndex(i => Math.max(0, Math.min(i, without.length - 1)));
+      setHardRepeatCounts(prev => new Map(prev).set(card.id, hardCount + 1));
+    } else {
+      setSessionCards(without);
+      setCurrentIndex(i => Math.max(0, Math.min(i, without.length - 1)));
+    }
+
     setPhase("recall");
   };
 

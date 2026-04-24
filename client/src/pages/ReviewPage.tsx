@@ -23,7 +23,7 @@ export default function ReviewPage() {
   if (isError) return <ReviewErrorState />;
   if (sessionCards === null) return <ReviewLoadingState />;
   if (sessionCards.length === 0) {
-    if (initialCount > 0) return <ReviewSessionCompleteState total={initialCount} onRestart={resetSession} />;
+    if (initialCount > 0) return <ReviewSessionCompleteState total={initialCount} />;
     return <ReviewNoDueState />;
   }
 

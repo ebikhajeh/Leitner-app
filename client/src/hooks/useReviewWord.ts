@@ -7,6 +7,9 @@ export function useReviewWord() {
   return useMutation({
     mutationFn: ({ wordId, difficulty }: { wordId: string; difficulty: Difficulty }) =>
       api.patch(`/words/${wordId}/review`, { difficulty }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["words", "due"] }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["words", "due"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
   });
 }
