@@ -125,6 +125,9 @@ function renderPage() {
 - UI interactions: collapsible panels, conditional rendering, mode toggles
 - Session complete: shown after last item rated; singular/plural copy; re-entry button present
 
+### Controlled input gotcha
+`userEvent.clear` + `userEvent.type` on a React-controlled `<input>` does not reliably reset the value — the component re-renders with the old state before typing begins, so characters are appended to the previous value. Use `fireEvent.change(input, { target: { value: "45" } })` instead to directly trigger the `onChange` handler.
+
 ## E2E Tests
 
 Use the **`playwright-e2e-writer`** agent to write all Playwright tests. Never write tests directly — always delegate to this agent.
@@ -539,6 +542,13 @@ client/src/
 
 ### `SettingsPage` local helpers
 - `AnimatedSettingsCard` — local component wrapping `motion.section` with card styling and entrance animation; accepts `delay` and `children`
+
+### SettingsPage component test (`client/src/pages/SettingsPage.test.tsx`)
+- Mocks `api` with `{ get, patch, delete }` — `delete` is needed alongside `get`/`patch`
+- Mocks `sonner` as `Object.assign(vi.fn(), { success: vi.fn() })` — handles both `toast("…")` and `toast.success("…")` calls
+- Mocks `framer-motion` with both `motion.div` and `motion.section` (SettingsPage uses `motion.section` via `AnimatedSettingsCard`)
+- Uses `fireEvent.change` for the custom number input (not `userEvent.clear` + `userEvent.type` — see controlled input gotcha above)
+- Debounce tests use `waitFor({ timeout: 1000 })` — real timers; the 400 ms debounce fires within the default `waitFor` window
 
 ### `dueLimit` "all" convention
 - Frontend stores `"all"` as the string sentinel; `buildPayload` converts it to `null` before sending

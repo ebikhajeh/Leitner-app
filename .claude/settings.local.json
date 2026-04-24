@@ -35,7 +35,8 @@
       "Bash(npx tsc *)",
       "Bash(bun prisma *)",
       "Bash(kill %1)",
-      "Bash(npx shadcn@latest add slider switch --yes)"
+      "Bash(npx shadcn@latest add slider switch --yes)",
+      "Bash(bun tsc *)"
     ]
   }
 }
