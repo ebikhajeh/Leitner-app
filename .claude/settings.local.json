@@ -34,7 +34,8 @@
       "Bash(npx kill-port *)",
       "Bash(npx tsc *)",
       "Bash(bun prisma *)",
-      "Bash(kill %1)"
+      "Bash(kill %1)",
+      "Bash(npx shadcn@latest add slider switch --yes)"
     ]
   }
 }

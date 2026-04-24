@@ -1,17 +1,18 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, BookOpen, PenLine, Plus, BarChart3 } from "lucide-react";
+import { Home, BookOpen, PenLine, Plus, Settings } from "lucide-react";
 
 const items = [
   { key: "dashboard", path: "/",          icon: Home,      label: "Home" },
   { key: "review",    path: "/review",     icon: BookOpen,  label: "Review" },
   { key: "practice",  path: "/",          icon: PenLine,   label: "Practice" },
   { key: "addword",   path: "/words/new", icon: Plus,      label: "Add" },
-  { key: "stats",     path: "/",          icon: BarChart3, label: "Stats" },
+  { key: "settings",  path: "/settings",  icon: Settings,  label: "Settings" },
 ];
 
 function getActiveKey(pathname: string): string {
   if (pathname === "/words/new") return "addword";
   if (pathname === "/review") return "review";
+  if (pathname === "/settings") return "settings";
   if (pathname === "/") return "dashboard";
   return "";
 }

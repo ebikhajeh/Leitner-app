@@ -8,6 +8,7 @@ import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import AddWordPage from "./pages/AddWordPage";
 import ReviewPage from "./pages/ReviewPage";
+import SettingsPage from "./pages/SettingsPage";
 import BottomNav from "./components/BottomNav";
 
 function LoadingScreen() {
@@ -47,6 +48,10 @@ function AppShell() {
         <Route
           path="/review"
           element={<ProtectedRoute session={authed}><ReviewPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/settings"
+          element={<ProtectedRoute session={authed}><SettingsPage /></ProtectedRoute>}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

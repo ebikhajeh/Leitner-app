@@ -7,6 +7,7 @@ import { requireAuth } from "./middleware/requireAuth";
 import wordsRouter from "./routes/words";
 import generateRouter from "./routes/generate";
 import dashboardRouter from "./routes/dashboard";
+import settingsRouter from "./routes/settings";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -37,6 +38,7 @@ app.get("/api/me", requireAuth, (_req, res) => {
 app.use("/api/words", wordsRouter);
 app.use("/api/generate-word", generateRouter);
 app.use("/api/dashboard", dashboardRouter);
+app.use("/api/settings", settingsRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

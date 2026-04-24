@@ -22,11 +22,12 @@ Each app has its own `node_modules` — they are not a Bun workspace.
 ### Server layout
 ```
 server/src/
-  routes/       ← one file per resource (words.ts, generate.ts, dashboard.ts)
-  controllers/  ← one file per resource (wordsController.ts)
+  routes/       ← one file per resource (words.ts, generate.ts, dashboard.ts, settings.ts)
+  controllers/  ← one file per resource (wordsController.ts, settingsController.ts)
   lib/          ← auth.ts, openai.ts (singleton), validateWord.ts (re-export of @shared),
                    wordService.ts, wordSchemas.ts, reviewScheduler.ts,
-                   dashboardService.ts, dashboardConfig.ts
+                   dashboardService.ts, dashboardConfig.ts,
+                   settingsService.ts, settingsSchemas.ts
   middleware/   ← requireAuth.ts, validate.ts
   types/        ← express.d.ts (augments Express.Locals)
 ```
@@ -34,11 +35,14 @@ server/src/
 ### Client layout
 ```
 client/src/
-  pages/          ← thin route-level orchestrators (HomePage.tsx, AddWordPage.tsx, ReviewPage.tsx)
-  features/       ← co-located feature components + types (add-word/, review/, dashboard/)
+  pages/          ← thin route-level orchestrators (HomePage.tsx, AddWordPage.tsx,
+                     ReviewPage.tsx, SettingsPage.tsx)
+  features/       ← co-located feature components + types (add-word/, review/, dashboard/,
+                     settings/)
   hooks/          ← custom React hooks (useGenerateWord.ts, useDueWords.ts,
-                     useReviewWord.ts, useReviewSession.ts, useDashboard.ts)
-  components/ui/  ← shadcn components
+                     useReviewWord.ts, useReviewSession.ts, useDashboard.ts,
+                     useSettings.ts, useSettingsForm.ts)
+  components/ui/  ← shadcn components (includes slider.tsx, switch.tsx)
   config/         ← app-wide constants (languages.ts)
   lib/            ← utilities (api.ts, auth-client.ts, getApiErrorMessage.ts)
 ```
@@ -219,6 +223,23 @@ model Word {
 - `nextReviewAt` is stored as UTC midnight of the target day
 - `lastReviewedAt` and `reviewCount` are informational — not used for scheduling
 
+### UserSettings
+```prisma
+model UserSettings {
+  id               String  @id @default(cuid())
+  userId           String  @unique
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyReviewLimit Int     @default(20)
+  dailyDueCards    Int?
+  autoSave         Boolean @default(false)
+}
+```
+
+- `dailyReviewLimit` — hard cap on total cards per review session (default 20)
+- `dailyDueCards` — max previously-reviewed cards in a session; `null` = unlimited (defaults to 10 if no record exists)
+- `autoSave` — when true, each settings change triggers an immediate PATCH (debounced 400 ms for sliders)
+- Row is created lazily on first save; `getSettings()` returns in-memory defaults if no row exists yet
+
 ## API Routes
 
 Routes are split into dedicated files under `server/src/routes/` and mounted in `server/src/index.ts`.
@@ -233,6 +254,9 @@ Routes are split into dedicated files under `server/src/routes/` and mounted in 
 | PATCH | `/api/words/:id/review` | `routes/words.ts` | Yes | Submit difficulty rating, advance Leitner box |
 | POST | `/api/generate-word` | `routes/generate.ts` | Yes | AI-generate meaning + example |
 | GET | `/api/dashboard` | `routes/dashboard.ts` | Yes | Gamification stats for the home dashboard |
+| GET | `/api/settings` | `routes/settings.ts` | Yes | Get user settings (returns defaults if no row exists) |
+| PATCH | `/api/settings` | `routes/settings.ts` | Yes | Partial update; upserts on first save |
+| DELETE | `/api/settings` | `routes/settings.ts` | Yes | Reset to defaults |
 
 To add a new resource, create `server/src/routes/<resource>.ts`, export a Router, and mount it with `app.use("/api/<resource>", router)` in `index.ts`.
 
@@ -251,6 +275,10 @@ lib/wordSchemas.ts       ← Zod schemas (createWordSchema, reviewWordSchema)
 **`validate.ts` middleware**: wraps a Zod schema, parses `req.body`, replaces it with the parsed result, or returns `400 { message }` on first error. Never do inline Zod parsing in a controller.
 
 **`wordService.ts`** exports: `getWordsByUser`, `getDueWords`, `createWord`, `reviewWord`. The `reviewWord` function calls `scheduleNextReview` and updates `box`, `nextReviewAt`, `lastReviewedAt`, and increments `reviewCount`.
+
+**`getDueWords` session loading**: fetches user settings, then runs two separate queries — up to `dueLimit` previously-reviewed cards (ordered by `nextReviewAt asc`) + up to `(reviewLimit − dueCount)` new cards (`lastReviewedAt IS NULL`, ordered by `createdAt asc`). Due cards always come first. When `dailyDueCards` is `null` the entire `reviewLimit` budget goes to due cards.
+
+**`settingsService.ts`** exports: `getSettings`, `upsertSettings`, `resetSettings`. `getSettings` returns the DB row or in-memory defaults without writing — the row is only created on the first `upsertSettings` call.
 
 **`reviewScheduler.ts`** (`server/src/lib/`): pure function `scheduleNextReview(currentLevel, difficulty)` → `{ box, nextReviewAt }`. Uses UTC date arithmetic (`setUTCHours(0,0,0,0)` + `setUTCDate`) so scheduling is timezone-independent. Levels map to intervals `[1, 3, 7, 14, 30, 60]` days.
 
@@ -312,12 +340,14 @@ Returns: `{ targetLanguage, setTargetLanguage, isGenerating, aiError, hasGenerat
 | `/` | `HomePage` | Yes |
 | `/words/new` | `AddWordPage` | Yes |
 | `/review` | `ReviewPage` | Yes |
+| `/settings` | `SettingsPage` | Yes |
 
 ### Navigation
-- **Bottom navigation bar** (`client/src/components/BottomNav.tsx`) — fixed, 5 items (Home, Review, Practice, Add, Stats)
+- **Bottom navigation bar** (`client/src/components/BottomNav.tsx`) — fixed, 5 items (Home, Review, Practice, Add, Settings)
 - Active item derived from `useLocation()` — no props needed
 - Active color: `text-blue-500`; inactive: `text-muted-foreground`
-- Practice, Stats are still placeholders (navigate to `/` until built)
+- Practice is still a placeholder (navigates to `/` until built)
+- Settings navigates to `/settings` (live)
 
 ### HTTP Client
 - **Axios instance**: `client/src/lib/api.ts` — `baseURL: "/api"`, `withCredentials: true`
@@ -478,6 +508,42 @@ The old "Review Again" button was removed — reviewed cards are scheduled to fu
 
 ### `useDueWords` query key
 `["words", "due"]` — invalidated both by `useReviewWord` (after rating) and by `AddWordPage` save mutation (after adding a new word), ensuring the next session picks up new cards.
+
+## Feature Architecture — Settings
+
+`SettingsPage` is a thin presentational renderer. Logic lives in `useSettingsForm`; API calls live in `useSettings` / `useUpdateSettings` / `useResetSettings`; UI sections live under `client/src/features/settings/`.
+
+```
+client/src/
+  pages/SettingsPage.tsx                    ← presentational; consumes useSettingsForm, renders sections
+  hooks/useSettings.ts                      ← useSettings (GET), useUpdateSettings (PATCH),
+                                               useResetSettings (DELETE); shared SETTINGS_QUERY_KEY
+  hooks/useSettingsForm.ts                  ← all local state, sync effect, handlers, debounce
+  features/settings/
+    ReviewLimitSection.tsx                  ← presets + slider + custom input for reviewLimit
+    DueCardsSection.tsx                     ← presets (5 / 10 / 15 / All) for dueLimit
+    PreferencesSection.tsx                  ← auto-save toggle
+```
+
+### `useSettings` hooks
+- `SETTINGS_QUERY_KEY = ["settings"] as const` — shared constant used in all three hooks
+- `Settings` interface and `UpdateSettingsInput` type are exported for use in `useSettingsForm`
+- `useSetSettingsCache()` — private helper; both mutation `onSuccess` callbacks call it to update the cache directly (no refetch)
+
+### `useSettingsForm` internals
+- `DEFAULT_SETTINGS` — local constant with initial state values (`reviewLimit: 20`, `dueLimit: 10`, `autoSave: false`)
+- `hydrateSettings(settings)` — sets all three state slices from a Settings object; used in the sync `useEffect` and the reset `onSuccess`
+- `buildPayload()` — assembles `UpdateSettingsInput` from current state; maps `"all"` → `null` for `dailyDueCards`
+- **Auto-save debouncing**: slider/preset changes call `debouncedSave` (400 ms debounce via `useRef` timer) to prevent rapid PATCH requests; the toggle (`handleAutoSaveToggle`) is not debounced — it is a discrete action that always saves immediately
+- Timer is cleared on unmount via `useEffect` cleanup
+
+### `SettingsPage` local helpers
+- `AnimatedSettingsCard` — local component wrapping `motion.section` with card styling and entrance animation; accepts `delay` and `children`
+
+### `dueLimit` "all" convention
+- Frontend stores `"all"` as the string sentinel; `buildPayload` converts it to `null` before sending
+- Backend stores `null` in `dailyDueCards`; `getSettings` returns `null`; frontend maps `null → "all"` in `hydrateSettings`
+- Never store the string `"all"` in the database
 
 ## Frontend Conventions
 

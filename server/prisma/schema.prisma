@@ -19,6 +19,16 @@ model User {
   sessions Session[]
   accounts Account[]
   words    Word[]
+  settings UserSettings?
+}
+
+model UserSettings {
+  id               String  @id @default(cuid())
+  userId           String  @unique
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyReviewLimit Int     @default(20)
+  dailyDueCards    Int?
+  autoSave         Boolean @default(false)
 }
 
 model Session {
