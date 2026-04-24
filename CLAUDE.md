@@ -22,12 +22,13 @@ Each app has its own `node_modules` — they are not a Bun workspace.
 ### Server layout
 ```
 server/src/
-  routes/       ← one file per resource (words.ts, generate.ts, dashboard.ts, settings.ts)
+  routes/       ← one file per resource (words.ts, generate.ts, dashboard.ts, settings.ts, stats.ts)
   controllers/  ← one file per resource (wordsController.ts, settingsController.ts)
   lib/          ← auth.ts, openai.ts (singleton), validateWord.ts (re-export of @shared),
                    wordService.ts, wordSchemas.ts, reviewScheduler.ts,
                    dashboardService.ts, dashboardConfig.ts,
-                   settingsService.ts, settingsSchemas.ts
+                   settingsService.ts, settingsSchemas.ts,
+                   statsService.ts
   middleware/   ← requireAuth.ts, validate.ts
   types/        ← express.d.ts (augments Express.Locals)
 ```
@@ -36,12 +37,12 @@ server/src/
 ```
 client/src/
   pages/          ← thin route-level orchestrators (HomePage.tsx, AddWordPage.tsx,
-                     ReviewPage.tsx, SettingsPage.tsx)
+                     ReviewPage.tsx, SettingsPage.tsx, StatsPage.tsx)
   features/       ← co-located feature components + types (add-word/, review/, dashboard/,
-                     settings/)
+                     settings/, stats/)
   hooks/          ← custom React hooks (useGenerateWord.ts, useDueWords.ts,
                      useReviewWord.ts, useReviewSession.ts, useDashboard.ts,
-                     useSettings.ts, useSettingsForm.ts)
+                     useSettings.ts, useSettingsForm.ts, useStats.ts)
   components/ui/  ← shadcn components (includes slider.tsx, switch.tsx)
   config/         ← app-wide constants (languages.ts)
   lib/            ← utilities (api.ts, auth-client.ts, getApiErrorMessage.ts)
@@ -260,6 +261,7 @@ Routes are split into dedicated files under `server/src/routes/` and mounted in 
 | GET | `/api/settings` | `routes/settings.ts` | Yes | Get user settings (returns defaults if no row exists) |
 | PATCH | `/api/settings` | `routes/settings.ts` | Yes | Partial update; upserts on first save |
 | DELETE | `/api/settings` | `routes/settings.ts` | Yes | Reset to defaults |
+| GET | `/api/stats` | `routes/stats.ts` | Yes | Learning progress stats (totals, Leitner distribution, weekly activity) |
 
 To add a new resource, create `server/src/routes/<resource>.ts`, export a Router, and mount it with `app.use("/api/<resource>", router)` in `index.ts`.
 
@@ -282,6 +284,8 @@ lib/wordSchemas.ts       ← Zod schemas (createWordSchema, reviewWordSchema)
 **`getDueWords` session loading**: fetches user settings, then runs two separate queries — up to `dueLimit` previously-reviewed cards (ordered by `nextReviewAt asc`) + up to `(reviewLimit − dueCount)` new cards (`lastReviewedAt IS NULL`, ordered by `createdAt asc`). Due cards always come first. When `dailyDueCards` is `null` the entire `reviewLimit` budget goes to due cards.
 
 **`settingsService.ts`** exports: `getSettings`, `upsertSettings`, `resetSettings`. `getSettings` returns the DB row or in-memory defaults without writing — the row is only created on the first `upsertSettings` call.
+
+**`statsService.ts`** exports: `getStats(userId)`. Does a single Prisma query + one in-memory pass to compute `totalWords`, `mastered`, `retention`, `sessions`, `leitnerBoxes`, and `weeklyActivity`. No separate DB queries per metric — all derived from the same `words` array. See Feature Architecture — Stats for metric definitions.
 
 **`reviewScheduler.ts`** (`server/src/lib/`): pure function `scheduleNextReview(currentLevel, difficulty)` → `{ box, nextReviewAt }`. Uses UTC date arithmetic (`setUTCHours(0,0,0,0)` + `setUTCDate`) so scheduling is timezone-independent. Levels map to intervals `[1, 3, 7, 14, 30, 60]` days.
 
@@ -344,12 +348,13 @@ Returns: `{ targetLanguage, setTargetLanguage, isGenerating, aiError, hasGenerat
 | `/words/new` | `AddWordPage` | Yes |
 | `/review` | `ReviewPage` | Yes |
 | `/settings` | `SettingsPage` | Yes |
+| `/stats` | `StatsPage` | Yes |
 
 ### Navigation
-- **Bottom navigation bar** (`client/src/components/BottomNav.tsx`) — fixed, 5 items (Home, Review, Practice, Add, Settings)
+- **Bottom navigation bar** (`client/src/components/BottomNav.tsx`) — fixed, 5 items (Home, Review, Stats, Add, Settings)
 - Active item derived from `useLocation()` — no props needed
 - Active color: `text-blue-500`; inactive: `text-muted-foreground`
-- Practice is still a placeholder (navigates to `/` until built)
+- Stats (`BarChart2` icon) navigates to `/stats` (live — replaced the old Practice placeholder)
 - Settings navigates to `/settings` (live)
 
 ### HTTP Client
@@ -554,6 +559,52 @@ client/src/
 - Frontend stores `"all"` as the string sentinel; `buildPayload` converts it to `null` before sending
 - Backend stores `null` in `dailyDueCards`; `getSettings` returns `null`; frontend maps `null → "all"` in `hydrateSettings`
 - Never store the string `"all"` in the database
+
+## Feature Architecture — Stats
+
+`StatsPage` is a thin orchestrator. All feature components live under `client/src/features/stats/`.
+
+```
+client/src/
+  pages/StatsPage.tsx                     ← orchestrator: useStats, loading/error/data states
+  features/stats/
+    types.ts                              ← Stats interface, LeitnerBox interface;
+                                             weeklyActivity typed as 7-tuple
+    StatCardsGrid.tsx                     ← 2×2 grid of stat cards with icons + number formatting;
+                                             StatCardsGridSkeleton exported
+    LeitnerBoxesCard.tsx                  ← progress bars for boxes 1–5 with semantic labels
+                                             and progressive colors; LeitnerBoxesCardSkeleton exported
+    WeeklyActivityCard.tsx                ← Mon–Sun bar chart; zero-count days show a 4px sliver;
+                                             WeeklyActivityCardSkeleton exported
+  hooks/useStats.ts                       ← useQuery for GET /api/stats; STATS_QUERY_KEY exported
+```
+
+### Server — `statsService.ts`
+- `getStats(userId)` — single export; one Prisma query + one in-memory aggregation pass
+- **Single-pass aggregation**: builds `boxCounts` (Record), `reviewDates` (Date[]), `reviewedCount`, and `progressedCount` in one `for` loop — no repeated `.filter()` passes
+- `reviewDates` is shared between `calculateSessions` and `calculateWeeklyActivity`
+- `mastered` is derived from `boxCounts` after the loop: `(boxCounts[5] ?? 0) + (boxCounts[6] ?? 0)`
+
+### Metric definitions
+- **totalWords**: total word count for the user
+- **mastered**: words in box 5 or 6 (both displayed as "Mastered" in the UI; internal scheduling for box 6 at 60-day interval is unchanged)
+- **retention**: % of reviewed cards (`reviewCount > 0`) that have progressed past box 1 — proxy for long-term recall success
+- **sessions**: unique UTC days on which at least one review occurred (derived from `lastReviewedAt`)
+- **leitnerBoxes**: `[{ box, count }]` for boxes 1–5; box 5 count absorbs box 6 (`box >= 5`) — UI shows 5 bars only
+- **weeklyActivity**: `[mon, tue, wed, thu, fri, sat, sun]` — cards whose `lastReviewedAt` falls on each day of the current Mon–Sun week
+
+### Leitner box display conventions
+- Boxes 1–5 shown; box 6 is absorbed into box 5 at the API layer
+- `BOX_LABELS`: `{ 1: "New", 2: "Learning", 3: "Familiar", 4: "Confident", 5: "Mastered" }` — rendered below each "Box N" label
+- `BOX_COLORS`: `{ 1: "bg-slate-400", 2: "bg-blue-400", 3: "bg-cyan-500", 4: "bg-green-500", 5: "bg-amber-400" }` — progressive palette; count labels inside bars use `text-white`
+
+### `useStats` query key
+`STATS_QUERY_KEY = ["stats"] as const` — exported from `useStats.ts`. Import it in any future mutation that should invalidate stats (e.g. a word deletion feature).
+
+### StatsPage responsibilities
+- Calls `useStats()` — no other data fetching
+- Shows `*Skeleton` variants while loading; error card with retry button on failure
+- Each section (`StatCardsGrid`, `LeitnerBoxesCard`, `WeeklyActivityCard`) receives only the slice of `Stats` it needs
 
 ## Frontend Conventions
 
