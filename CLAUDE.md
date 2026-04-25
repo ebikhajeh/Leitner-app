@@ -606,6 +606,14 @@ client/src/
 - Shows `*Skeleton` variants while loading; error card with retry button on failure
 - Each section (`StatCardsGrid`, `LeitnerBoxesCard`, `WeeklyActivityCard`) receives only the slice of `Stats` it needs
 
+### StatsPage component test (`client/src/pages/StatsPage.test.tsx`)
+- Mocks `api` with `{ get: vi.fn() }` only — no mutations on this page
+- Mocks `framer-motion` with `motion.div` only (`motion.section` is not used here)
+- No `sonner` mock needed — StatsPage has no toasts
+- Test data pitfall: avoid values in `mastered` that collide with any `leitnerBoxes[n].count` — duplicate text causes `findByText` to throw "found multiple elements". Use a value that doesn't appear in box counts.
+- "Mastered" appears in both the stat cards grid label and as the box 5 sublabel in `LeitnerBoxesCard` — use `getAllByText("Mastered")` to avoid ambiguity
+- Retry button test: mock `api.get` to reject once then resolve, then click Retry and assert it was called twice
+
 ## Frontend Conventions
 
 ### shadcn/ui
