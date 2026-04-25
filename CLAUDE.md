@@ -666,6 +666,18 @@ client/src/
 - Shows `*Skeleton` variants while loading; error card with retry button on failure
 - Each section (`StatCardsGrid`, `LeitnerBoxesCard`, `WeeklyActivityCard`) receives only the slice of `Stats` it needs
 
+### SignUpPage component test (`client/src/pages/SignUpPage.test.tsx`)
+- Mocks `@/lib/auth-client` as `{ authClient: { signUp: { email: vi.fn() } } }` — no `api` mock needed (auth pages bypass Axios)
+- Mocks `react-router-dom` with `async (importOriginal)` factory — spreads the real module and replaces only `useNavigate: () => mockNavigate`; keeps `Link`, `MemoryRouter`, etc. intact
+- Wraps render in `MemoryRouter` — required for `Link` in the footer and for `useNavigate` inside `useSignUp`
+- Mocks `framer-motion` with `motion.div` only — no `motion.section` used in auth pages
+- No `sonner` or `api` mock needed — sign-up flow has no toasts and no Axios calls
+- `authClient.signUp.email` mock shape: `mockImplementation(async (_data, callbacks: any) => { callbacks?.onSuccess?.() })` for success; swap `onSuccess` for `onError({ error: { message: "..." } })` for error
+- "Create account" appears in both the `<h1>` heading and the submit button — use `getByRole("heading", { name: "Create account" })` for the heading to avoid `getByText` ambiguity
+- Use `fireEvent.change` for all input fills (not `userEvent.type`) — controlled input gotcha applies here
+- Submit button reference: grab before clicking (`const submitBtn = getByRole("button", { name: /create account/ })`), then assert `toBeDisabled()` on the same ref after click — the button's text content changes to spinner so aria-name changes during pending state
+- Password visibility toggles use `aria-label="Show password"` / `"Hide password"` — two toggles exist on the page; use `getAllByRole("button", { name: /show password/i })[0]` for password, `[1]` for confirmPassword
+
 ### StatsPage component test (`client/src/pages/StatsPage.test.tsx`)
 - Mocks `api` with `{ get: vi.fn() }` only — no mutations on this page
 - Mocks `framer-motion` with `motion.div` only (`motion.section` is not used here)
