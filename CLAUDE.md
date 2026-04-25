@@ -37,15 +37,17 @@ server/src/
 ```
 client/src/
   pages/          ← thin route-level orchestrators (HomePage.tsx, AddWordPage.tsx,
-                     ReviewPage.tsx, SettingsPage.tsx, StatsPage.tsx)
+                     ReviewPage.tsx, SettingsPage.tsx, StatsPage.tsx,
+                     LoginPage.tsx, SignUpPage.tsx)
   features/       ← co-located feature components + types (add-word/, review/, dashboard/,
-                     settings/, stats/)
+                     settings/, stats/, auth/)
   hooks/          ← custom React hooks (useGenerateWord.ts, useDueWords.ts,
                      useReviewWord.ts, useReviewSession.ts, useDashboard.ts,
                      useSettings.ts, useSettingsForm.ts, useStats.ts)
-  components/ui/  ← shadcn components (includes slider.tsx, switch.tsx)
+  components/ui/  ← shadcn components (includes slider.tsx, switch.tsx, checkbox.tsx)
   config/         ← app-wide constants (languages.ts)
   lib/            ← utilities (api.ts, auth-client.ts, getApiErrorMessage.ts)
+  public/         ← static assets (favicon.svg — BookOpen icon on blue-500 rounded square)
 ```
 
 ## Path Aliases
@@ -180,8 +182,9 @@ app.get("/api/some-route", requireAuth, (req, res) => { ... });
 
 ### Client (`client/`)
 - **Auth client**: `src/lib/auth-client.ts` — created with `createAuthClient({ baseURL: import.meta.env.VITE_API_URL })`
-- **Exports**: `useSession`, `signIn`, `signOut` — import directly from `@/lib/auth-client`
-- **Sign in**: `signIn.email({ email, password }, { onSuccess, onError })`
+- **Exports**: `authClient`, `useSession`, `signIn`, `signOut`, `signUp` — import directly from `@/lib/auth-client`
+- **Sign in**: `signIn.email({ email, password, rememberMe? }, { onSuccess, onError })` — `rememberMe: true` issues a persistent session cookie; `false` is session-only
+- **Sign up**: `authClient.signUp.email({ name, email, password }, { onSuccess, onError })` — auto-signs in on success, redirects to `/`
 - **Session hook**: `useSession()` returns `{ data, isPending }` — `data.user` is the authenticated user
 
 ### Required env vars
@@ -344,6 +347,7 @@ Returns: `{ targetLanguage, setTargetLanguage, isGenerating, aiError, hasGenerat
 | Path | Component | Protected |
 |---|---|---|
 | `/login` | `LoginPage` | No (redirects to `/` if authed) |
+| `/signup` | `SignUpPage` | No (redirects to `/` if authed) |
 | `/` | `HomePage` | Yes |
 | `/words/new` | `AddWordPage` | Yes |
 | `/review` | `ReviewPage` | Yes |
@@ -366,6 +370,62 @@ Returns: `{ targetLanguage, setTargetLanguage, isGenerating, aiError, hasGenerat
 ### Toasts
 - **Sonner** `<Toaster position="bottom-center" />` mounted in `App.tsx`
 - Success toasts: `toast.success(msg, { style: { background: "white", color: "#16a34a" }, classNames: { icon: "text-green-600" } })`
+
+## Feature Architecture — Auth
+
+Both `LoginPage` and `SignUpPage` are thin layout shells. All form logic, validation, and auth calls live in `features/auth/`.
+
+```
+client/src/
+  pages/LoginPage.tsx                   ← layout only: gradient bg, AuthHeader, AuthCard, footer link
+  pages/SignUpPage.tsx                  ← layout only: same structure as LoginPage
+  features/auth/
+    animations.ts                       ← authPageEntrance, authLogoEntrance (framer-motion presets)
+    AuthHeader.tsx                      ← logo badge + title + subtitle; props: title, subtitle
+    AuthCard.tsx                        ← card shell (rounded-3xl, shadow-xl); accepts children
+    AuthField.tsx                       ← label + icon + Input + optional rightSlot + error message
+    LoginForm.tsx                       ← form UI + RHF wiring; calls useLogin, usePasswordVisibility
+    SignUpForm.tsx                       ← form UI + RHF wiring; calls useSignUp, usePasswordVisibility
+    login-schema.ts                     ← loginSchema (Zod) + LoginFormValues type
+    signup-schema.ts                    ← signUpSchema (Zod) + SignUpFormValues type
+    useLogin.ts                         ← signIn.email call, success redirect, server error state
+    useSignUp.ts                        ← authClient.signUp.email call, success redirect, server error state
+    usePasswordVisibility.ts            ← { visible, toggle } — one instance per password field
+```
+
+### Auth page visual design
+- **Background**: `bg-gradient-to-b from-accent/40 via-background to-background`
+- **Logo badge**: `w-16 h-16 rounded-2xl bg-blue-500 text-white shadow-lg shadow-blue-500/30` with `BookOpen` icon; spring entrance via `authLogoEntrance`
+- **Card**: `bg-card border border-border rounded-3xl p-6 shadow-xl shadow-primary/5`
+- **Inputs**: shadcn `Input` at `h-12 rounded-xl`, `pl-10` for icon clearance, `pr-10` when `rightSlot` present
+- **Submit button**: `bg-blue-500 hover:bg-blue-600 text-white border-0` — `border-0` removes the 1px transparent border that creates a visible rim with `bg-clip-padding`
+- **Branding**: browser tab title is "Leitner"; favicon is `client/public/favicon.svg` (BookOpen on blue-500 rounded square)
+
+### AuthField
+Reusable labeled input block — use for every field in auth forms. Props extend `React.ComponentProps<"input">`, so RHF `{...register(...)}` spreads directly:
+```tsx
+<AuthField
+  id="email"
+  label="Email"
+  icon={<Mail className="w-4 h-4" />}
+  type="email"
+  placeholder="you@example.com"
+  error={errors.email?.message}
+  aria-invalid={!!errors.email}
+  {...register("email", { onChange: clearServerError })}
+/>
+```
+Pass `rightSlot` for the eye-toggle button — `AuthField` handles absolute positioning.
+
+### Sign-up validation rules (`signup-schema.ts`)
+- `name`: `.trim().min(2)` — trims before length check; pure-space names fail
+- `email`: `.trim().email()` — trims whitespace before format validation
+- `password`: `.refine(val => val.trim().length >= 8)` — no transform (sent as typed); pure-space or short-after-trim passwords fail
+- `confirmPassword`: cross-field `.refine` against `password`
+
+### Remember Me (login only)
+- `useState(true)` — checked by default
+- Passed as `rememberMe` to `signIn.email()`; Better Auth issues a persistent cookie when `true`, session-only when `false`
 
 ## Feature Architecture — Dashboard (Home)
 
@@ -619,10 +679,12 @@ client/src/
 ### shadcn/ui
 - Components live in `client/src/components/ui/`
 - Add new components with: `npx shadcn@latest add <name>` (run from `client/`)
+- Installed: `button`, `input`, `label`, `card`, `skeleton`, `select`, `slider`, `switch`, `collapsible`, `checkbox`
 - Use `@/` path alias for all imports (e.g. `@/components/ui/button`)
 - Theme tokens are CSS variables defined in `client/src/index.css` — always use semantic tokens (`bg-background`, `text-foreground`, `text-destructive`, etc.) rather than hardcoded colors
 - Long `className` strings in shadcn wrappers are extracted into named constants at the top of the file
 - Custom wrapper components get `.displayName` for React DevTools (skip primitive re-exports where TypeScript disallows it)
+- **Button border override**: the base Button has `border border-transparent bg-clip-padding` which creates a 1px light rim when using a colored background. Add `border-0` to `className` to remove it (used on all auth submit buttons)
 
 ### CSS token values — do not revert
 - `--background: oklch(0.97 0 0)` — intentionally off-white (not pure white) so cards visually elevate above the page surface

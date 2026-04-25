@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 const queryClient = new QueryClient();
 import { useSession } from "./lib/auth-client";
 import LoginPage from "./pages/LoginPage";
+import SignUpPage from "./pages/SignUpPage";
 import HomePage from "./pages/HomePage";
 import AddWordPage from "./pages/AddWordPage";
 import ReviewPage from "./pages/ReviewPage";
@@ -37,6 +38,10 @@ function AppShell() {
         <Route
           path="/login"
           element={authed ? <Navigate to="/" replace /> : <LoginPage />}
+        />
+        <Route
+          path="/signup"
+          element={authed ? <Navigate to="/" replace /> : <SignUpPage />}
         />
         <Route
           path="/"

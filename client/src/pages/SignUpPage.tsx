@@ -1,26 +1,26 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import LoginForm from "@/features/auth/LoginForm";
+import { authPageEntrance } from "@/features/auth/animations";
 import AuthHeader from "@/features/auth/AuthHeader";
 import AuthCard from "@/features/auth/AuthCard";
-import { authPageEntrance } from "@/features/auth/animations";
+import SignUpForm from "@/features/auth/SignUpForm";
 
-export default function LoginPage() {
+export default function SignUpPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-accent/40 via-background to-background flex flex-col">
       <div className="flex-1 flex items-center justify-center px-5 py-10">
         <motion.div {...authPageEntrance} className="w-full max-w-sm">
-          <AuthHeader title="Welcome back" subtitle="Learn smarter with the Leitner system." />
+          <AuthHeader title="Create account" subtitle="Start learning smarter with Leitner." />
 
           <AuthCard>
-            <LoginForm />
+            <SignUpForm />
           </AuthCard>
 
           {/* Footer */}
           <p className="text-center text-sm text-muted-foreground mt-6">
-            Don't have an account?{" "}
-            <Link to="/signup" className="text-foreground font-semibold hover:underline">
-              Sign up
+            Already have an account?{" "}
+            <Link to="/login" className="text-foreground font-semibold hover:underline">
+              Sign in
             </Link>
           </p>
         </motion.div>
