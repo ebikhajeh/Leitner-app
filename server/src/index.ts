@@ -20,6 +20,11 @@ if (process.env.NODE_ENV === "production") {
     "/api/auth",
     rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false })
   );
+  // Tighter limit for password reset endpoints to prevent email flooding
+  app.use(
+    ["/api/auth/forget-password", "/api/auth/reset-password"],
+    rateLimit({ windowMs: 60 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false })
+  );
 }
 
 // BetterAuth handler must be registered before express.json()
