@@ -20,7 +20,7 @@ vi.mock("framer-motion", () => ({
 }));
 
 import { authClient } from "@/lib/auth-client";
-const mockResetPassword = authClient.resetPassword as ReturnType<typeof vi.fn>;
+const mockResetPassword = authClient.resetPassword as unknown as ReturnType<typeof vi.fn>;
 
 function renderWithToken(token = "test-token-abc") {
   return render(

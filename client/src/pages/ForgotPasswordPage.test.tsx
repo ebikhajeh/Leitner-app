@@ -20,7 +20,7 @@ vi.mock("framer-motion", () => ({
 }));
 
 import { authClient } from "@/lib/auth-client";
-const mockRequestPasswordReset = authClient.requestPasswordReset as ReturnType<typeof vi.fn>;
+const mockRequestPasswordReset = authClient.requestPasswordReset as unknown as ReturnType<typeof vi.fn>;
 
 function renderPage() {
   return render(
