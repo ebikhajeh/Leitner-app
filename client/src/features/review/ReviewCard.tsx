@@ -1,5 +1,4 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2 } from "lucide-react";
 import { DifficultyButtons } from "./DifficultyButtons";
 import { ShowAnswerButton } from "./ShowAnswerButton";
 import type { Word, ReviewMode } from "./types";
@@ -18,14 +17,7 @@ interface ReviewCardProps {
 }
 
 function WordHeading({ text }: { text: string }) {
-  return (
-    <div className="flex items-center justify-center gap-2">
-      <h2 className="text-3xl font-bold">{text}</h2>
-      <button type="button" className="text-muted-foreground hover:text-primary transition-colors cursor-pointer" aria-label="Pronounce word">
-        <Volume2 className="w-5 h-5" />
-      </button>
-    </div>
-  );
+  return <h2 className="text-3xl font-bold">{text}</h2>;
 }
 
 function MeaningBlock({ text }: { text: string }) {
