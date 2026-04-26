@@ -726,6 +726,28 @@ client/src/
 - Submit button reference: grab before clicking (`const submitBtn = getByRole("button", { name: /create account/ })`), then assert `toBeDisabled()` on the same ref after click — the button's text content changes to spinner so aria-name changes during pending state
 - Password visibility toggles use `aria-label="Show password"` / `"Hide password"` — two toggles exist on the page; use `getAllByRole("button", { name: /show password/i })[0]` for password, `[1]` for confirmPassword
 
+### ForgotPasswordPage component test (`client/src/pages/ForgotPasswordPage.test.tsx`)
+- Mocks `@/lib/auth-client` as `{ authClient: { requestPasswordReset: vi.fn() } }` — no `api` mock needed
+- Wraps render in `MemoryRouter` — required for `Link` in the footer
+- Mocks `framer-motion` with `motion.div` only — no `motion.section` used in auth pages
+- No `sonner` or `api` mock needed — forgot-password flow has no toasts and no Axios calls
+- Default mock: `mockResolvedValue({ data: {}, error: null })` ; error mock: `mockResolvedValue({ data: null, error: { message: "..." } })`
+- Fallback error test: pass `error: {}` (no message property) — the hook falls back to "Something went wrong. Please try again."
+- Success state swaps the form out entirely — assert `queryByRole("button", { name: /send reset link/i })` is gone
+- Success state uses generic copy ("If an account exists…") — assert with `/if an account exists/i`
+- API receives trimmed email — pass `"  user@example.com  "` and assert called with `"user@example.com"`
+- `redirectTo` should contain `/reset-password` — use `expect.stringContaining("/reset-password")`
+
+### ResetPasswordPage component test (`client/src/pages/ResetPasswordPage.test.tsx`)
+- Mocks `@/lib/auth-client` as `{ authClient: { resetPassword: vi.fn() } }` — no `api` mock needed
+- Wraps render in `MemoryRouter initialEntries` — use `["/reset-password?token=test-token-abc"]` for token scenario, `["/reset-password"]` for no-token scenario; avoids mocking `useSearchParams`
+- No-token guard: `queryByLabelText(/new password/i)` is null; `queryByRole("button", { name: /reset password/i })` is null
+- Password visibility toggles: two independent toggles on page — `getAllByRole("button", { name: /show password/i })[0]` for password, `[1]` for confirmPassword
+- "Sign in" appears in both the success state card and the footer "Back to Sign in" link — use `getAllByRole("link", { name: /sign in/i })` after success, not `getByRole`
+- Fallback error: `error: {}` (no message) — hook falls back to "This link is invalid or has expired. Please request a new one."
+- Server error clears when either the password or confirmPassword field is edited — test both independently
+- Token from URL is passed directly to `authClient.resetPassword({ newPassword, token })` — use a custom token string in `renderWithToken("my-secret-token")` and assert it was forwarded
+
 ### StatsPage component test (`client/src/pages/StatsPage.test.tsx`)
 - Mocks `api` with `{ get: vi.fn() }` only — no mutations on this page
 - Mocks `framer-motion` with `motion.div` only (`motion.section` is not used here)
