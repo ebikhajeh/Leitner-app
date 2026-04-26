@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -55,16 +56,24 @@ export default function LoginForm() {
         {...register("password", { onChange: clearServerError })}
       />
 
-      {/* Remember me */}
-      <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit">
-        <input
-          type="checkbox"
-          checked={rememberMe}
-          onChange={(e) => setRememberMe(e.target.checked)}
-          className="w-4 h-4 rounded border-border accent-blue-500 cursor-pointer"
-        />
-        <span className="text-sm text-muted-foreground">Remember me</span>
-      </label>
+      {/* Remember me + Forgot password */}
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="w-4 h-4 rounded border-border accent-blue-500 cursor-pointer"
+          />
+          <span className="text-sm text-muted-foreground">Remember me</span>
+        </label>
+        <Link
+          to="/forgot-password"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Forgot password?
+        </Link>
+      </div>
 
       {serverError && (
         <p className="text-destructive text-sm">{serverError}</p>

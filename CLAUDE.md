@@ -24,7 +24,9 @@ Each app has its own `node_modules` — they are not a Bun workspace.
 server/src/
   routes/       ← one file per resource (words.ts, generate.ts, dashboard.ts, settings.ts, stats.ts)
   controllers/  ← one file per resource (wordsController.ts, settingsController.ts)
-  lib/          ← auth.ts, openai.ts (singleton), validateWord.ts (re-export of @shared),
+  lib/          ← auth.ts, authEnv.ts, authConfig.ts,
+                   emailService.ts, emailTemplates.ts,
+                   openai.ts (singleton), validateWord.ts (re-export of @shared),
                    wordService.ts, wordSchemas.ts, reviewScheduler.ts,
                    dashboardService.ts, dashboardConfig.ts,
                    settingsService.ts, settingsSchemas.ts,
@@ -38,7 +40,8 @@ server/src/
 client/src/
   pages/          ← thin route-level orchestrators (HomePage.tsx, AddWordPage.tsx,
                      ReviewPage.tsx, SettingsPage.tsx, StatsPage.tsx,
-                     LoginPage.tsx, SignUpPage.tsx)
+                     LoginPage.tsx, SignUpPage.tsx,
+                     ForgotPasswordPage.tsx, ResetPasswordPage.tsx)
   features/       ← co-located feature components + types (add-word/, review/, dashboard/,
                      settings/, stats/, auth/)
   hooks/          ← custom React hooks (useGenerateWord.ts, useDueWords.ts,
@@ -69,6 +72,7 @@ Key libraries to look up via context7:
 | Prisma | `/websites/prisma_io` |
 | TanStack Query | resolve via `mcp__context7__resolve-library-id` |
 | shadcn/ui | `/shadcn-ui/ui` |
+| Better Auth | `/websites/better-auth` |
 
 ## Dev Commands
 ```bash
@@ -79,6 +83,8 @@ bun run test:e2e:ui       # run Playwright E2E tests (UI mode)
 cd client && bun run test        # run component tests (single pass)
 cd client && bun run test:watch  # run component tests (watch mode)
 ```
+
+**Important**: the server dev script is `bun --watch --watch-file .env src/index.ts`. The `--watch-file .env` flag is required — without it, `bun --watch` only restarts on `.ts` changes, so editing `.env` leaves the running process with stale environment values (including cached Resend credentials). Always use the script via `bun run dev` from `server/`, never invoke `bun --watch src/index.ts` directly.
 
 ## Component Tests
 
@@ -170,10 +176,17 @@ Truncates `User`, `Session`, `Account`, `Verification` with `CASCADE`. Leaves sc
 The app uses **Better Auth** with email/password and session cookies.
 
 ### Server (`server/`)
-- **Config**: `src/lib/auth.ts` — initialises `betterAuth` with the Prisma adapter, `emailAndPassword` enabled, and `trustedOrigins` from `CLIENT_URL`
+- **Config**: `src/lib/auth.ts` — initialises `betterAuth` with the Prisma adapter, `emailAndPassword` enabled, `trustedOrigins` from `CLIENT_URL`, and password reset wired to `sendPasswordResetEmail`. Policy constants (`resetPasswordTokenExpiresIn`, `revokeSessionsOnPasswordReset`) are imported from `authConfig.ts`; env vars are validated by `authEnv.ts`
+- **Env validation**: `src/lib/authEnv.ts` — `requireEnv()` helper; throws at startup if `CLIENT_URL`, `DB_PROVIDER`, or `BETTER_AUTH_SECRET` are missing; exports the validated strings
+- **Auth policy constants**: `src/lib/authConfig.ts` — `AUTH_CONFIG` object (`resetPasswordTokenExpiresIn: 3600`, `revokeSessionsOnPasswordReset: true`); spread into `emailAndPassword` config in `auth.ts`
 - **Route**: `app.all("/api/auth/{*any}", toNodeHandler(auth))` in `src/index.ts` — must be registered **before** `express.json()`
 - **Guard middleware**: `src/middleware/requireAuth.ts` — calls `auth.api.getSession()`, returns 401 if no session, otherwise sets `res.locals.user` and `res.locals.session`
 - **Types**: `src/types/express.d.ts` augments `Express.Locals` so `res.locals.user` and `res.locals.session` are fully typed via `typeof auth.$Infer.Session`
+
+### Password reset email (`server/`)
+- **`src/lib/emailService.ts`** — lazy Resend client; exports `sendPasswordResetEmail(to, url)`. The `Resend` instance and `fromEmail` string are initialized on first call (not at module load) — env vars are validated then, not at import time. This keeps the module safe to import in tests without `RESEND_*` vars set.
+- **`src/lib/emailTemplates.ts`** — pure template builder; exports `buildPasswordResetEmail(resetUrl)` → `{ subject, html }`. No side effects. Add new email types here.
+- Better Auth handles token generation, storage (in the `Verification` table), expiry (1 h), and one-time use automatically. No custom routes or DB migration needed for password reset.
 
 Protect any route by adding `requireAuth` as middleware:
 ```ts
@@ -186,6 +199,8 @@ app.get("/api/some-route", requireAuth, (req, res) => { ... });
 - **Sign in**: `signIn.email({ email, password, rememberMe? }, { onSuccess, onError })` — `rememberMe: true` issues a persistent session cookie; `false` is session-only
 - **Sign up**: `authClient.signUp.email({ name, email, password }, { onSuccess, onError })` — auto-signs in on success, redirects to `/`
 - **Session hook**: `useSession()` returns `{ data, isPending }` — `data.user` is the authenticated user
+- **Forgot password**: `authClient.requestPasswordReset({ email, redirectTo })` → `{ data, error }` — `redirectTo` should be `${window.location.origin}/reset-password`; server always returns 200 (no user enumeration)
+- **Reset password**: `authClient.resetPassword({ newPassword, token })` → `{ data, error }` — `token` comes from `?token=` query param in the reset URL
 
 ### Required env vars
 | Var | Where | Purpose |
@@ -193,6 +208,8 @@ app.get("/api/some-route", requireAuth, (req, res) => { ... });
 | `CLIENT_URL` | server | Allowed CORS origin + trusted origin for Better Auth |
 | `DB_PROVIDER` | server | Prisma adapter provider (e.g. `postgresql`) |
 | `BETTER_AUTH_SECRET` | server | Secret for signing sessions — validated at startup |
+| `RESEND_API_KEY` | server | Resend API key for sending password reset emails |
+| `RESEND_FROM_EMAIL` | server | Sender address — must be a verified Resend domain (e.g. `Leitner <noreply@yourdomain.com>`); use `onboarding@resend.dev` for dev (delivers only to account owner) |
 | `VITE_API_URL` | client | Base URL for the Better Auth client |
 
 ## Security
@@ -200,7 +217,10 @@ app.get("/api/some-route", requireAuth, (req, res) => { ... });
 ### Patterns in place — do not revert
 - **`/api/me`** returns only `{ user: { id, name, email, image } }` — the session object (which contains the raw token) is intentionally excluded
 - **Startup validation** — `server/src/lib/auth.ts` throws if `CLIENT_URL`, `DB_PROVIDER`, or `BETTER_AUTH_SECRET` are missing
-- **Rate limiting** — `express-rate-limit` on `/api/auth` in production only (20 req / 15 min); registered before the Better Auth handler in `server/src/index.ts`
+- **Rate limiting** — `express-rate-limit` on `/api/auth` in production only (20 req / 15 min); registered before the Better Auth handler in `server/src/index.ts`. A tighter limit (5 req / hr) is also applied specifically to `/api/auth/forget-password` and `/api/auth/reset-password` to prevent email flooding
+
+### Email service lazy-init — do not revert
+`emailService.ts` initializes the `Resend` client on the **first call** to `sendPasswordResetEmail`, not at module import. This is intentional: it keeps the module importable in tests without `RESEND_*` env vars set. The singleton (`_resend`, `_fromEmail`) is set once per process lifetime. Changing `RESEND_FROM_EMAIL` in `.env` requires a full server restart — `bun --watch` handles this automatically via `--watch-file .env`.
 
 ### Known remaining recommendations (not yet applied)
 - Add `helmet` middleware for security headers
@@ -348,6 +368,8 @@ Returns: `{ targetLanguage, setTargetLanguage, isGenerating, aiError, hasGenerat
 |---|---|---|
 | `/login` | `LoginPage` | No (redirects to `/` if authed) |
 | `/signup` | `SignUpPage` | No (redirects to `/` if authed) |
+| `/forgot-password` | `ForgotPasswordPage` | No (redirects to `/` if authed) |
+| `/reset-password` | `ResetPasswordPage` | No (redirects to `/` if authed) |
 | `/` | `HomePage` | Yes |
 | `/words/new` | `AddWordPage` | Yes |
 | `/review` | `ReviewPage` | Yes |
@@ -373,23 +395,35 @@ Returns: `{ targetLanguage, setTargetLanguage, isGenerating, aiError, hasGenerat
 
 ## Feature Architecture — Auth
 
-Both `LoginPage` and `SignUpPage` are thin layout shells. All form logic, validation, and auth calls live in `features/auth/`.
+All auth pages are thin layout shells. All form logic, validation, and auth calls live in `features/auth/`.
 
 ```
 client/src/
   pages/LoginPage.tsx                   ← layout only: gradient bg, AuthHeader, AuthCard, footer link
   pages/SignUpPage.tsx                  ← layout only: same structure as LoginPage
+  pages/ForgotPasswordPage.tsx          ← layout only: same structure; footer "Sign in" link
+  pages/ResetPasswordPage.tsx           ← layout only: same structure; footer "Back to Sign in" link
   features/auth/
     animations.ts                       ← authPageEntrance, authLogoEntrance (framer-motion presets)
     AuthHeader.tsx                      ← logo badge + title + subtitle; props: title, subtitle
     AuthCard.tsx                        ← card shell (rounded-3xl, shadow-xl); accepts children
     AuthField.tsx                       ← label + icon + Input + optional rightSlot + error message
-    LoginForm.tsx                       ← form UI + RHF wiring; calls useLogin, usePasswordVisibility
+    LoginForm.tsx                       ← form UI + RHF wiring; calls useLogin, usePasswordVisibility;
+                                           includes "Forgot password?" link next to "Remember me"
     SignUpForm.tsx                       ← form UI + RHF wiring; calls useSignUp, usePasswordVisibility
+    ForgotPasswordForm.tsx              ← email field; on success swaps to inline success state
+    ResetPasswordForm.tsx               ← new password + confirm + visibility toggles;
+                                           guards against missing token; on success swaps to inline success state
     login-schema.ts                     ← loginSchema (Zod) + LoginFormValues type
     signup-schema.ts                    ← signUpSchema (Zod) + SignUpFormValues type
+    forgot-password-schema.ts           ← forgotPasswordSchema (Zod) + ForgotPasswordFormValues type
+    reset-password-schema.ts            ← resetPasswordSchema (Zod, cross-field refine) + ResetPasswordFormValues type
     useLogin.ts                         ← signIn.email call, success redirect, server error state
     useSignUp.ts                        ← authClient.signUp.email call, success redirect, server error state
+    useForgotPassword.ts                ← authClient.requestPasswordReset call; always shows success state
+                                           on API success (server returns 200 regardless of email existence)
+    useResetPassword.ts                 ← reads ?token from useSearchParams; authClient.resetPassword call;
+                                           server errors (invalid/expired token) shown inline
     usePasswordVisibility.ts            ← { visible, toggle } — one instance per password field
 ```
 
@@ -426,6 +460,20 @@ Pass `rightSlot` for the eye-toggle button — `AuthField` handles absolute posi
 ### Remember Me (login only)
 - `useState(true)` — checked by default
 - Passed as `rememberMe` to `signIn.email()`; Better Auth issues a persistent cookie when `true`, session-only when `false`
+
+### Forgot / Reset Password UX states
+**ForgotPasswordForm** has two render states:
+- Default: email field + "Send reset link" button
+- Success: inline card swap (check icon + "Check your inbox" copy) — shown after API responds without error; uses generic copy ("If an account exists…") to prevent user enumeration
+
+**ResetPasswordForm** has three render states:
+- No-token guard: shown immediately if `?token=` is absent from URL — shows error + link to `/forgot-password`
+- Default: new password + confirm password fields + "Reset password" button
+- Success: inline card swap (check icon + "Password updated" + link to `/login`)
+
+Server errors (invalid token, expired token, already used) from `authClient.resetPassword` are displayed inline above the submit button and clear when the user edits a field.
+
+`useResetPassword` reads the token via `useSearchParams()` — the token is a query parameter (`?token=...`) in the reset URL that Better Auth sends in the email.
 
 ## Feature Architecture — Dashboard (Home)
 

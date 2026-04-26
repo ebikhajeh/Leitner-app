@@ -37,7 +37,11 @@
       "Bash(kill %1)",
       "Bash(npx shadcn@latest add slider switch --yes)",
       "Bash(bun tsc *)",
-      "Bash(npx shadcn@latest add checkbox --yes)"
+      "Bash(npx shadcn@latest add checkbox --yes)",
+      "Bash(pkill -f \"bun.*src/index.ts\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(bun -e \"console.log\\(process.env.RESEND_FROM_EMAIL\\)\")",
+      "Bash(tasklist)"
     ]
   }
 }

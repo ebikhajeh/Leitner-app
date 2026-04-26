@@ -6,6 +6,8 @@ const queryClient = new QueryClient();
 import { useSession } from "./lib/auth-client";
 import LoginPage from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import HomePage from "./pages/HomePage";
 import AddWordPage from "./pages/AddWordPage";
 import ReviewPage from "./pages/ReviewPage";
@@ -42,6 +44,14 @@ function AppShell() {
         <Route
           path="/signup"
           element={authed ? <Navigate to="/" replace /> : <SignUpPage />}
+        />
+        <Route
+          path="/forgot-password"
+          element={authed ? <Navigate to="/" replace /> : <ForgotPasswordPage />}
+        />
+        <Route
+          path="/reset-password"
+          element={authed ? <Navigate to="/" replace /> : <ResetPasswordPage />}
         />
         <Route
           path="/"

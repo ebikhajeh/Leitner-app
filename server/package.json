@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "bun --watch src/index.ts",
+    "dev": "bun --watch --watch-file .env src/index.ts",
     "start": "bun src/index.ts",
     "seed": "bun src/seed.ts"
   },
