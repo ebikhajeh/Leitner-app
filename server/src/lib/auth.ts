@@ -5,6 +5,8 @@ import { sendPasswordResetEmail } from "./emailService";
 import { CLIENT_URL, DB_PROVIDER } from "./authEnv";
 import { AUTH_CONFIG } from "./authConfig";
 
+const isProduction = process.env.NODE_ENV === "production";
+
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: DB_PROVIDER as "postgresql" }),
   emailAndPassword: {
@@ -16,4 +18,11 @@ export const auth = betterAuth({
     },
   },
   trustedOrigins: [CLIENT_URL],
+  advanced: {
+    // Cross-site cookies required for Vercel (frontend) ↔ Render (backend) in production
+    defaultCookieAttributes: {
+      sameSite: isProduction ? "none" : "lax",
+      secure: isProduction,
+    },
+  },
 });
