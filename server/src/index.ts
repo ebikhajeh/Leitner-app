@@ -16,15 +16,10 @@ const PORT = process.env.PORT ?? 3000;
 app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
 
 if (process.env.NODE_ENV === "production") {
-  app.use(
-    "/api/auth",
-    rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false })
-  );
-  // Tighter limit for password reset endpoints to prevent email flooding
-  app.use(
-    ["/api/auth/forget-password", "/api/auth/reset-password"],
-    rateLimit({ windowMs: 60 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false })
-  );
+  // TODO: tighten these limits before final production launch (currently relaxed for testing)
+  const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
+  app.use("/api/auth", authLimiter);
+  app.use(["/api/auth/forget-password", "/api/auth/reset-password"], authLimiter);
 }
 
 // BetterAuth handler must be registered before express.json()
