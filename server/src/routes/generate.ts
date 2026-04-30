@@ -38,8 +38,8 @@ const wordAiSchema = z.object({
 const sentenceAiSchema = z.object({
   english: z.string(),
   translation: z.string(),
-  improved: z.string().optional(),
-  notes: z.string().optional(),
+  improved: z.string(),
+  notes: z.string(),
 });
 
 function buildWordPrompt(
@@ -77,8 +77,8 @@ Convert this to natural, conversational English — how people actually speak, n
 Return a JSON object with:
 - "english": the natural conversational English version (required)
 - "translation": the sentence in ${targetLanguage} (use original if input is already in ${targetLanguage})
-- "improved": a more fluent or polished English version, only if meaningfully different from "english" (optional)
-- "notes": one-sentence explanation of any non-obvious translation choice (optional)
+- "improved": a more fluent or polished English version if meaningfully different from "english", otherwise empty string
+- "notes": one-sentence explanation of any non-obvious translation choice, otherwise empty string
 
 IMPORTANT: "english" must sound natural — for example:
   GOOD: "Can you give me that glass?"
