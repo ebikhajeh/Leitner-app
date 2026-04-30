@@ -21,7 +21,10 @@ function detectInputLanguage(word: string, targetLanguage: string): "english" | 
   return pattern && pattern.test(word) ? "target" : "english";
 }
 
-function detectInputType(word: string): "word" | "sentence" {
+// English inputs are always treated as word/phrase regardless of length.
+// Only target-language inputs longer than 3 words become "sentence".
+function detectInputType(word: string, inputLanguage: "english" | "target"): "word" | "sentence" {
+  if (inputLanguage === "english") return "word";
   return word.trim().split(/\s+/).length > 3 ? "sentence" : "word";
 }
 
@@ -50,20 +53,28 @@ function buildWordPrompt(
   const fromTarget = inputLanguage === "target";
   return `You are a conversational English learning assistant.
 
-Input word/phrase: "${word}"
-Target language for translation: ${targetLanguage}
+Input: "${word}"
+Target language: ${targetLanguage}
 ${fromTarget ? `The input is written in ${targetLanguage}. Find its natural English equivalent.` : "The input is in English."}
+
+### CRITICAL RULES — FOLLOW EXACTLY
+
+1. "translation" MUST be in ${targetLanguage} — NEVER return translation in English.
+2. "definition" MUST be a simple English explanation at A2/B1 level — NOT a paraphrase, NOT a sentence rewrite.
+3. "examples" MUST be EXACTLY 2 natural conversational English sentences — no more, no less.
+4. If the input is a phrase (e.g. "I will take care of it"):
+   - definition = explain what the phrase means simply (e.g. "to handle something or deal with it")
+   - translation = the phrase meaning in ${targetLanguage}
+   - examples = 2 natural English sentences using the phrase
 
 Return a JSON object with exactly these fields:
 - "english": the English word or phrase (${fromTarget ? "converted from input" : "same as input"})
-- "definition": simple, clear English definition at A2/B1 level — avoid formal dictionary phrasing
-- "translation": the word/phrase translated into ${targetLanguage}
-- "synonyms": JSON array of 2–3 English synonyms or closely related words
-- "examples": JSON array of exactly 2 natural, conversational English sentences using the word — real daily speech, not textbook examples
-- "tip": one short practical usage tip (1–2 sentences)
-- "difficulty": "easy", "medium", or "hard" based on how common the word is in everyday English
-
-Keep everything short and natural.`;
+- "definition": simple English meaning — A2/B1 level, 1 short sentence, not a rewrite of the input
+- "translation": meaning in ${targetLanguage} — MUST be ${targetLanguage}, never English
+- "synonyms": JSON array of 2–3 English synonyms or related words/phrases
+- "examples": JSON array of EXACTLY 2 natural conversational English sentences
+- "tip": one short practical usage tip
+- "difficulty": "easy", "medium", or "hard"`;
 }
 
 function buildSentencePrompt(sentence: string, targetLanguage: string): string {
@@ -136,8 +147,8 @@ router.post("/", requireAuth, async (req, res) => {
 
   try {
     const trimmedWord = word.trim();
-    const inputType = detectInputType(trimmedWord);
     const inputLanguage = detectInputLanguage(trimmedWord, targetLanguage);
+    const inputType = detectInputType(trimmedWord, inputLanguage);
 
     let result: { meaning: string; exampleSentence: string };
 
