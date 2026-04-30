@@ -5,68 +5,110 @@ import { requireAuth } from "../middleware/requireAuth";
 import { validateWord } from "../lib/validateWord";
 import { openai } from "../lib/openai";
 
-// Maps target language names to their Unicode script range.
-// Only non-Latin scripts can be detected reliably this way.
+// Only non-Latin scripts can be detected reliably via Unicode ranges.
 const LANGUAGE_SCRIPT_PATTERNS: Record<string, RegExp> = {
-  Persian: /[\u0600-\u06FF]/,
-  Arabic: /[\u0600-\u06FF]/,
-  Chinese: /[\u4E00-\u9FFF\u3400-\u4DBF]/,
-  Japanese: /[\u3040-\u30FF\u4E00-\u9FFF]/,
-  Korean: /[\uAC00-\uD7AF]/,
+  Persian: /[؀-ۿ]/,
+  Arabic: /[؀-ۿ]/,
+  Chinese: /[一-鿿㐀-䶿]/,
+  Japanese: /[぀-ヿ一-鿿]/,
+  Korean: /[가-힯]/,
 };
 
-function detectOutputLanguage(word: string, targetLanguage: string): string {
+const MAX_WORD_COUNT = 15;
+
+function detectInputLanguage(word: string, targetLanguage: string): "english" | "target" {
   const pattern = LANGUAGE_SCRIPT_PATTERNS[targetLanguage];
-  const inputIsInTargetLanguage = pattern ? pattern.test(word) : false;
-  return inputIsInTargetLanguage ? "English" : targetLanguage;
+  return pattern && pattern.test(word) ? "target" : "english";
 }
 
-function buildGenerateWordPrompt(word: string, targetLanguage: string): string {
-  const isPhrase = word.includes(" ");
-  const outputLanguage = detectOutputLanguage(word, targetLanguage);
+function detectInputType(word: string): "word" | "sentence" {
+  return word.trim().split(/\s+/).length > 3 ? "sentence" : "word";
+}
 
-  if (isPhrase) {
-    return `You are a vocabulary assistant helping language learners.
+const wordAiSchema = z.object({
+  english: z.string(),
+  definition: z.string(),
+  translation: z.string(),
+  synonyms: z.array(z.string()),
+  examples: z.array(z.string()),
+  tip: z.string(),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+});
 
-Phrase: "${word}"
-Output Language: ${outputLanguage}
+const sentenceAiSchema = z.object({
+  english: z.string(),
+  translation: z.string(),
+  improved: z.string().optional(),
+  notes: z.string().optional(),
+});
 
-The input is a multi-word phrase, not a single vocabulary word.
+function buildWordPrompt(
+  word: string,
+  targetLanguage: string,
+  inputLanguage: "english" | "target"
+): string {
+  const fromTarget = inputLanguage === "target";
+  return `You are a conversational English learning assistant.
 
-Generate:
-1. meaning: A single line containing only the translation of the entire phrase into ${outputLanguage}. Do not provide an English definition.
-2. exampleSentence: Two natural English sentences using the phrase, separated by a newline character (\\n). Do not number them.
+Input word/phrase: "${word}"
+Target language for translation: ${targetLanguage}
+${fromTarget ? `The input is written in ${targetLanguage}. Find its natural English equivalent.` : "The input is in English."}
 
-Example for phrase "give up" with Persian output:
-meaning: "تسلیم شدن / دست کشیدن"
-exampleSentence: "He decided to give up smoking.\\nShe refused to give up on her dream."`;
-  }
+Return a JSON object with exactly these fields:
+- "english": the English word or phrase (${fromTarget ? "converted from input" : "same as input"})
+- "definition": simple, clear English definition at A2/B1 level — avoid formal dictionary phrasing
+- "translation": the word/phrase translated into ${targetLanguage}
+- "synonyms": JSON array of 2–3 English synonyms or closely related words
+- "examples": JSON array of exactly 2 natural, conversational English sentences using the word — real daily speech, not textbook examples
+- "tip": one short practical usage tip (1–2 sentences)
+- "difficulty": "easy", "medium", or "hard" based on how common the word is in everyday English
 
-  return `You are a vocabulary assistant helping language learners.
+Keep everything short and natural.`;
+}
 
-Word: "${word}"
-Output Language: ${outputLanguage}
+function buildSentencePrompt(sentence: string, targetLanguage: string): string {
+  return `You are a conversational English learning assistant.
 
-The input is a single vocabulary word.
+Input sentence: "${sentence}"
+Target language: ${targetLanguage}
 
-Generate:
-1. meaning: Two lines separated by a newline character (\\n). First line: a short English definition. Second line: the translation in ${outputLanguage}.
-2. exampleSentence: Two natural English sentences using the word, separated by a newline character (\\n). Do not number them.
+Convert this to natural, conversational English — how people actually speak, not a literal or textbook translation.
 
-Example for word "abandon" with Persian output:
-meaning: "to leave behind permanently\\nترک کردن / رها کردن"
-exampleSentence: "He abandoned the old house.\\nShe abandoned the plan."`;
+Return a JSON object with:
+- "english": the natural conversational English version (required)
+- "translation": the sentence in ${targetLanguage} (use original if input is already in ${targetLanguage})
+- "improved": a more fluent or polished English version, only if meaningfully different from "english" (optional)
+- "notes": one-sentence explanation of any non-obvious translation choice (optional)
+
+IMPORTANT: "english" must sound natural — for example:
+  GOOD: "Can you give me that glass?"
+  BAD:  "Give that glass to me"`;
+}
+
+function mapWordResult(
+  result: z.infer<typeof wordAiSchema>
+): { meaning: string; exampleSentence: string } {
+  return {
+    meaning: `${result.definition}\n${result.translation}`,
+    exampleSentence: result.examples.slice(0, 2).join("\n"),
+  };
+}
+
+function mapSentenceResult(
+  result: z.infer<typeof sentenceAiSchema>
+): { meaning: string; exampleSentence: string } {
+  const improved =
+    result.improved && result.improved !== result.english ? result.improved : "";
+  return { meaning: result.english, exampleSentence: improved };
 }
 
 const router = Router();
 
-const resultSchema = z.object({
-  meaning: z.string(),
-  exampleSentence: z.string(),
-});
-
 router.post("/", requireAuth, async (req, res) => {
-  const { word, targetLanguage } = req.body as { word?: string; targetLanguage?: string };
+  const { word, targetLanguage } = req.body as {
+    word?: string;
+    targetLanguage?: string;
+  };
 
   if (!word?.trim() || !targetLanguage?.trim()) {
     res.status(400).json({ message: "word and targetLanguage are required" });
@@ -79,19 +121,43 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
 
+  const wordCount = word.trim().split(/\s+/).length;
+  if (wordCount > MAX_WORD_COUNT) {
+    res
+      .status(400)
+      .json({ message: `Input is too long. Please enter at most ${MAX_WORD_COUNT} words.` });
+    return;
+  }
+
   if (!process.env.OPENAI_API_KEY) {
     res.status(503).json({ message: "AI generation is not configured" });
     return;
   }
 
   try {
-    const { object } = await generateObject({
-      model: openai("gpt-5.4-nano"),
-      schema: resultSchema,
-      prompt: buildGenerateWordPrompt(word.trim(), targetLanguage),
-    });
+    const trimmedWord = word.trim();
+    const inputType = detectInputType(trimmedWord);
+    const inputLanguage = detectInputLanguage(trimmedWord, targetLanguage);
 
-    res.json(object);
+    let result: { meaning: string; exampleSentence: string };
+
+    if (inputType === "sentence") {
+      const { object } = await generateObject({
+        model: openai("gpt-5.4-nano"),
+        schema: sentenceAiSchema,
+        prompt: buildSentencePrompt(trimmedWord, targetLanguage),
+      });
+      result = mapSentenceResult(object);
+    } else {
+      const { object } = await generateObject({
+        model: openai("gpt-5.4-nano"),
+        schema: wordAiSchema,
+        prompt: buildWordPrompt(trimmedWord, targetLanguage, inputLanguage),
+      });
+      result = mapWordResult(object);
+    }
+
+    res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[generate-word] Error:", message);
